@@ -86,13 +86,6 @@
       box-shadow: 0 4px 0 #46A302; flex: 1;
     }
     .btn-primary:active { transform: translateY(2px); box-shadow: 0 2px 0 #46A302; }
-    .btn-secondary {
-      background: #F2F2F7; color: #1C1C1E; border: none;
-      padding: 12px 28px; font-size: 1rem; font-weight: 600;
-      border-radius: 50px; cursor: pointer;
-      font-family: 'Cairo', sans-serif; flex: 1;
-    }
-    .btn-secondary:hover { background: #E5E5EA; }
   </style>
   <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
 </head>
@@ -110,7 +103,6 @@
     </p>
   </div>
 
-  <!-- Modal -->
   <div class="modal-overlay" id="modal-overlay">
     <div class="modal">
       <div class="modal-icon">✅</div>
@@ -169,10 +161,7 @@
           id = OneSignal.User.pushSubscription.id;
         }
         return id;
-      } catch(e) {
-        console.error(e);
-        return null;
-      }
+      } catch(e) { return null; }
     }
 
     async function getOnesignalId() {
@@ -181,14 +170,11 @@
           return OneSignal.User.onesignalId;
         }
         return null;
-      } catch(e) {
-        return null;
-      }
+      } catch(e) { return null; }
     }
 
     function showModal(subId, osId) {
       currentPlayerId = subId || osId;
-      
       if (subId) {
         document.getElementById('sub-box').style.display = 'block';
         document.getElementById('sub-id').textContent = subId;
@@ -197,7 +183,6 @@
         document.getElementById('os-box').style.display = 'block';
         document.getElementById('os-id').textContent = osId;
       }
-      
       modalOverlay.classList.add('active');
     }
 
@@ -214,7 +199,6 @@
       btnText.style.display = 'none';
       spinner.style.display = 'inline-block';
       btn.disabled = true;
-
       try {
         var accepted = await OneSignal.Notifications.requestPermission();
         if (accepted) {
