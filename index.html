@@ -125,9 +125,6 @@
     .copy-icon-btn:hover {
       background: #E5E5EA;
     }
-    .copy-icon-btn:active {
-      background: #D1D1D6;
-    }
     .modal-buttons {
       display: flex;
       gap: 12px;
@@ -192,7 +189,7 @@
       <div class="subscription-id-box">
         <label>📱 معرف الاشتراك (Subscription ID):</label>
         <div class="id-display">
-          <span id="subscription-id-text"></span>
+          <span id="subscription-id-text">جاري تحميل المعرف...</span>
           <button class="copy-icon-btn" onclick="copyToClipboard()" title="نسخ المعرف">
             📋
           </button>
@@ -221,15 +218,6 @@
     var subscriptionIdText = document.getElementById('subscription-id-text');
     var currentSubscriptionId = null;
 
-    // Wait until OneSignal is fully ready
-    function waitForOneSignalReady(callback) {
-      if (window.OneSignal && OneSignal.Notifications && OneSignal.Notifications.requestPermission) {
-        callback();
-      } else {
-        setTimeout(function() { waitForOneSignalReady(callback); }, 200);
-      }
-    }
-
     // Initialize OneSignal
     window.addEventListener('load', function() {
       if (!window.OneSignalDeferred) { window.OneSignalDeferred = []; }
@@ -240,39 +228,73 @@
           serviceWorkerParam: { scope: '/El-Rashid-Notifications/' },
           promptOptions: { autoPrompt: false }
         });
-        // Enable the button when ready
-        waitForOneSignalReady(function() {
-          btn.disabled = false;
+        
+        // Enable the button
+        btn.disabled = false;
+        
+        // Set up subscription change listener to get ID automatically
+        OneSignal.User.pushSubscription.addEventListener('change', function(subscription) {
+          console.log('Subscription changed:', subscription);
+          if (subscription.current && subscription.current.id) {
+            console.log('Subscription ID:', subscription.current.id);
+            // Store the ID if we have a modal open
+            if (modalOverlay.classList.contains('active') && !currentSubscriptionId) {
+              updateModalWithId(subscription.current.id);
+            }
+          }
         });
       });
     });
 
-    // Function to get subscription ID
+    // Function to get subscription ID - using official web API
     async function getSubscriptionId() {
       try {
-        const subscription = await OneSignal.User.pushSubscription.getIdAsync();
-        return subscription || null;
+        // Method 1: Direct API call as per documentation
+        const subscriptionId = await OneSignal.User.pushSubscription.getIdAsync();
+        if (subscriptionId) {
+          console.log('Got subscription ID via getIdAsync:', subscriptionId);
+          return subscriptionId;
+        }
+        
+        // Method 2: Check if it's already available as a property
+        if (OneSignal.User.pushSubscription.id) {
+          console.log('Got subscription ID via property:', OneSignal.User.pushSubscription.id);
+          return OneSignal.User.pushSubscription.id;
+        }
+        
+        // Method 3: Try getting the user-level OneSignal ID as fallback
+        const onesignalId = OneSignal.User.onesignalId;
+        if (onesignalId) {
+          console.log('Got OneSignal User ID:', onesignalId);
+          return onesignalId;
+        }
+        
+        console.log('No ID available yet');
+        return null;
       } catch (error) {
         console.error('Error getting subscription ID:', error);
         return null;
       }
     }
 
-    // Show the modal with subscription ID
-    function showModal(subscriptionId) {
-      currentSubscriptionId = subscriptionId;
-      subscriptionIdText.textContent = subscriptionId;
-      modalOverlay.classList.add('active');
+    // Update modal with subscription ID
+    function updateModalWithId(subscriptionId) {
+      if (subscriptionId) {
+        currentSubscriptionId = subscriptionId;
+        subscriptionIdText.textContent = subscriptionId;
+      } else {
+        subscriptionIdText.textContent = 'لم يتم العثور على المعرف. يرجى المحاولة مرة أخرى.';
+      }
     }
 
     // Copy to clipboard function
     async function copyToClipboard() {
-      if (currentSubscriptionId) {
+      if (currentSubscriptionId && currentSubscriptionId !== 'جاري تحميل المعرف...') {
         try {
           await navigator.clipboard.writeText(currentSubscriptionId);
           alert('✅ تم نسخ المعرف بنجاح!');
         } catch (err) {
-          // Fallback for older browsers
+          // Fallback
           const textArea = document.createElement('textarea');
           textArea.value = currentSubscriptionId;
           textArea.style.position = 'fixed';
@@ -287,18 +309,22 @@
           }
           document.body.removeChild(textArea);
         }
+      } else {
+        alert('⚠️ لا يوجد معرف لنسخه بعد.');
       }
     }
 
-    // Copy and continue button
+    // Copy and continue
     async function copyAndContinue() {
-      await copyToClipboard();
+      if (currentSubscriptionId && currentSubscriptionId !== 'جاري تحميل المعرف...') {
+        await copyToClipboard();
+      }
       continueToPortal();
     }
 
     // Continue to portal
     function continueToPortal() {
-      if (currentSubscriptionId) {
+      if (currentSubscriptionId && currentSubscriptionId !== 'جاري تحميل المعرف...' && currentSubscriptionId !== 'لم يتم العثور على المعرف. يرجى المحاولة مرة أخرى.') {
         const portalUrlWithId = PORTAL_URL + '&subscription_id=' + encodeURIComponent(currentSubscriptionId);
         window.location.href = portalUrlWithId;
       } else {
@@ -317,38 +343,42 @@
       spinner.style.display = 'inline-block';
       btn.disabled = true;
 
-      waitForOneSignalReady(async function() {
-        try {
-          const accepted = await OneSignal.Notifications.requestPermission();
+      try {
+        // Request notification permission
+        const accepted = await OneSignal.Notifications.requestPermission();
+        
+        if (accepted) {
+          // Show modal immediately
+          modalOverlay.classList.add('active');
           
-          if (accepted) {
-            // Get subscription ID
-            const subscriptionId = await getSubscriptionId();
-            
-            // Show the modal with the ID
-            showModal(subscriptionId || 'لم يتم العثور على معرف');
-            
-            // Reset button
-            btnText.style.display = 'inline';
-            spinner.style.display = 'none';
-            btn.disabled = false;
-          } else {
-            throw new Error('Permission denied');
+          // Try to get subscription ID with retries
+          let subscriptionId = null;
+          let attempts = 0;
+          
+          while (!subscriptionId && attempts < 5) {
+            subscriptionId = await getSubscriptionId();
+            if (!subscriptionId) {
+              attempts++;
+              await new Promise(resolve => setTimeout(resolve, 1000));
+              console.log(`Retry attempt ${attempts} to get subscription ID...`);
+            }
           }
-        } catch (error) {
-          alert('لم يتم تفعيل الإشعارات. يمكنك المحاولة لاحقاً من إعدادات المتصفح.');
-          btnText.style.display = 'inline';
-          spinner.style.display = 'none';
-          btn.disabled = false;
+          
+          // Update modal with the ID
+          updateModalWithId(subscriptionId);
+          
+        } else {
+          throw new Error('Permission denied');
         }
-      });
-    });
-
-    // Close modal if clicked outside (optional)
-    modalOverlay.addEventListener('click', function(e) {
-      if (e.target === modalOverlay) {
-        // Don't close - force user to click a button
-        // modalOverlay.classList.remove('active');
+      } catch (error) {
+        console.error('Error:', error);
+        alert('لم يتم تفعيل الإشعارات. يمكنك المحاولة لاحقاً من إعدادات المتصفح.');
+        modalOverlay.classList.remove('active');
+      } finally {
+        // Reset button
+        btnText.style.display = 'inline';
+        spinner.style.display = 'none';
+        btn.disabled = false;
       }
     });
   </script>
