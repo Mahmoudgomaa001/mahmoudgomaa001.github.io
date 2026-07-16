@@ -36,37 +36,13 @@
     }
     @keyframes spin { to { transform: rotate(360deg); } }
     
-    /* Debug panel */
-    .debug-panel {
-      background: #1C1C1E;
-      color: #58CC02;
-      padding: 12px;
-      border-radius: 12px;
-      margin-top: 16px;
-      font-family: 'Courier New', monospace;
-      font-size: 0.7rem;
-      text-align: left;
-      direction: ltr;
-      max-height: 150px;
-      overflow-y: auto;
-      display: block;
-    }
-    .debug-panel .warn { color: #FFC800; }
-    .debug-panel .err { color: #FF4B4B; }
-    .debug-panel .ok { color: #58CC02; }
-    
-    /* Modal Styles */
     .modal-overlay {
       display: none;
       position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
+      top: 0; left: 0; right: 0; bottom: 0;
       background: rgba(0,0,0,0.5);
       z-index: 1000;
-      justify-content: center;
-      align-items: center;
+      justify-content: center; align-items: center;
     }
     .modal-overlay.active { display: flex; }
     .modal {
@@ -77,20 +53,26 @@
       width: 90%;
       text-align: center;
       box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      animation: modalSlideIn 0.3s ease-out;
+    }
+    @keyframes modalSlideIn {
+      from { transform: translateY(20px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
     }
     .modal-icon { font-size: 3rem; margin-bottom: 16px; }
     .modal h2 { margin: 0 0 8px 0; color: #1C1C1E; font-size: 1.4rem; }
+    .modal p { color: #8E8E93; margin-bottom: 20px; font-size: 0.9rem; }
     .info-box {
       background: #F2F2F7;
       border-radius: 12px;
-      padding: 12px;
-      margin-bottom: 10px;
+      padding: 16px;
+      margin-bottom: 12px;
       text-align: right;
     }
-    .info-box label { display: block; font-size: 0.75rem; color: #8E8E93; margin-bottom: 4px; }
+    .info-box label { display: block; font-size: 0.8rem; color: #8E8E93; margin-bottom: 4px; }
     .info-box .value {
       font-family: 'Courier New', monospace;
-      font-size: 0.8rem;
+      font-size: 0.85rem;
       word-break: break-all;
       color: #007AFF;
       font-weight: 600;
@@ -99,14 +81,18 @@
     .btn-primary {
       background: #58CC02; color: white; border: none;
       padding: 12px 28px; font-size: 1rem; font-weight: 700;
-      border-radius: 50px; cursor: pointer; font-family: 'Cairo', sans-serif;
+      border-radius: 50px; cursor: pointer;
+      font-family: 'Cairo', sans-serif;
       box-shadow: 0 4px 0 #46A302; flex: 1;
     }
+    .btn-primary:active { transform: translateY(2px); box-shadow: 0 2px 0 #46A302; }
     .btn-secondary {
       background: #F2F2F7; color: #1C1C1E; border: none;
       padding: 12px 28px; font-size: 1rem; font-weight: 600;
-      border-radius: 50px; cursor: pointer; font-family: 'Cairo', sans-serif; flex: 1;
+      border-radius: 50px; cursor: pointer;
+      font-family: 'Cairo', sans-serif; flex: 1;
     }
+    .btn-secondary:hover { background: #E5E5EA; }
   </style>
   <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
 </head>
@@ -119,42 +105,32 @@
       <span id="btn-text">تفعيل الإشعارات</span>
       <span class="spinner" style="display:none" id="spinner"></span>
     </button>
-    
-    <!-- Debug Panel - ALWAYS VISIBLE for testing -->
-    <div class="debug-panel" id="debug-panel">
-      <span class="ok">🟢 Waiting for OneSignal...</span>
-    </div>
-    
     <p style="margin-top:16px; font-size:0.8rem; color:#8E8E93">
       سيتم توجيهك إلى البوابة بعد التفعيل.
     </p>
   </div>
 
-  <!-- Success Modal -->
+  <!-- Modal -->
   <div class="modal-overlay" id="modal-overlay">
     <div class="modal">
       <div class="modal-icon">✅</div>
       <h2>تم تفعيل الإشعارات بنجاح!</h2>
-      <p>تم الحصول على المعرفات:</p>
+      <p>معرف الاشتراك الخاص بك:</p>
       
-      <div class="info-box">
+      <div class="info-box" id="sub-box" style="display:none;">
         <label>🔑 Subscription ID:</label>
-        <div class="value" id="sub-id-display">-</div>
+        <div class="value" id="sub-id"></div>
       </div>
       
-      <div class="info-box">
+      <div class="info-box" id="os-box" style="display:none;">
         <label>👤 OneSignal ID:</label>
-        <div class="value" id="onesignal-id-display">-</div>
-      </div>
-      
-      <div class="info-box">
-        <label>🔗 سيتم الإرسال كـ onesignal_player:</label>
-        <div class="value" id="player-id-display" style="color:#58CC02;">-</div>
+        <div class="value" id="os-id"></div>
       </div>
       
       <div class="modal-buttons">
-        <button class="btn-secondary" onclick="testCopy()">📋 نسخ</button>
-        <button class="btn-primary" onclick="testGo()">متابعة ←</button>
+        <button class="btn-primary" onclick="goToPortal()">
+          متابعة للبوابة ←
+        </button>
       </div>
     </div>
   </div>
@@ -167,155 +143,89 @@
     var btnText = document.getElementById('btn-text');
     var spinner = document.getElementById('spinner');
     var modalOverlay = document.getElementById('modal-overlay');
-    var debugPanel = document.getElementById('debug-panel');
     var currentPlayerId = null;
 
-    function debugLog(msg, type) {
-      type = type || 'ok';
-      var color = type === 'err' ? 'err' : type === 'warn' ? 'warn' : 'ok';
-      debugPanel.innerHTML += '\n<span class="' + color + '">' + msg + '</span>';
-      debugPanel.scrollTop = debugPanel.scrollHeight;
-      console.log(msg);
-    }
-
-    // Initialize
     window.addEventListener('load', function() {
-      debugLog('🟢 Page loaded');
-      
       if (!window.OneSignalDeferred) { window.OneSignalDeferred = []; }
       OneSignalDeferred.push(async function(OneSignal) {
-        debugLog('🟢 SDK ready');
-        
         await OneSignal.init({
           appId: APP_ID,
           serviceWorkerPath: '/El-Rashid-Notifications/OneSignalSDKWorker.js',
           serviceWorkerParam: { scope: '/El-Rashid-Notifications/' },
           promptOptions: { autoPrompt: false }
         });
-        
-        debugLog('🟢 Initialized');
         btn.disabled = false;
       });
     });
 
     async function getSubscriptionId() {
-      debugLog('🔍 Getting subscription ID...');
       try {
         await new Promise(resolve => setTimeout(resolve, 2000));
-        
         var id = null;
-        
         if (OneSignal.User.pushSubscription.getIdAsync) {
           id = await OneSignal.User.pushSubscription.getIdAsync();
         }
         if (!id && OneSignal.User.pushSubscription.id) {
           id = OneSignal.User.pushSubscription.id;
         }
-        
-        if (id) {
-          debugLog('✅ Subscription ID: ' + id.substring(0,20) + '...');
-          return id;
-        }
-        debugLog('⚠️ No subscription ID', 'warn');
-        return null;
+        return id;
       } catch(e) {
-        debugLog('❌ Error: ' + e.message, 'err');
+        console.error(e);
         return null;
       }
     }
 
     async function getOnesignalId() {
-      debugLog('🔍 Getting OneSignal ID...');
       try {
         if (OneSignal.User && OneSignal.User.onesignalId) {
-          var id = OneSignal.User.onesignalId;
-          debugLog('✅ OneSignal ID: ' + id.substring(0,20) + '...');
-          return id;
+          return OneSignal.User.onesignalId;
         }
-        debugLog('⚠️ No OneSignal ID', 'warn');
         return null;
       } catch(e) {
-        debugLog('❌ Error: ' + e.message, 'err');
         return null;
       }
     }
 
-    function showModal(subscriptionId, onesignalId) {
-      currentPlayerId = subscriptionId || onesignalId;
+    function showModal(subId, osId) {
+      currentPlayerId = subId || osId;
       
-      document.getElementById('sub-id-display').textContent = subscriptionId || 'غير متوفر';
-      document.getElementById('onesignal-id-display').textContent = onesignalId || 'غير متوفر';
-      document.getElementById('player-id-display').textContent = currentPlayerId || 'لا يوجد';
-      
-      debugLog('📊 Modal shown');
-      debugLog('   Player ID to send: ' + (currentPlayerId || 'NONE'));
-      debugLog('   Portal URL will be: ' + PORTAL_URL + '&onesignal_player=' + encodeURIComponent(currentPlayerId || ''));
+      if (subId) {
+        document.getElementById('sub-box').style.display = 'block';
+        document.getElementById('sub-id').textContent = subId;
+      }
+      if (osId) {
+        document.getElementById('os-box').style.display = 'block';
+        document.getElementById('os-id').textContent = osId;
+      }
       
       modalOverlay.classList.add('active');
     }
 
-    // TEST: Copy the URL that will be used
-    window.testCopy = function() {
-      if (!currentPlayerId) {
-        alert('لا يوجد معرف!');
-        return;
+    function goToPortal() {
+      var url = PORTAL_URL;
+      if (currentPlayerId) {
+        url += '&onesignal_player=' + encodeURIComponent(currentPlayerId);
+        localStorage.setItem('sp_onesignal_playerid', currentPlayerId);
       }
-      var url = PORTAL_URL + '&onesignal_player=' + encodeURIComponent(currentPlayerId);
-      navigator.clipboard.writeText(url).then(function() {
-        alert('✅ تم نسخ الرابط الكامل!\n\n' + url);
-        debugLog('📋 Copied: ' + url);
-      }).catch(function() {
-        prompt('انسخ الرابط:', url);
-      });
-    };
+      window.location.href = url;
+    }
 
-    // TEST: Go to portal
-    window.testGo = function() {
-      if (!currentPlayerId) {
-        alert('لا يوجد معرف! سيتم التوجيه بدون معرف');
-        window.location.href = PORTAL_URL;
-        return;
-      }
-      
-      var url = PORTAL_URL + '&onesignal_player=' + encodeURIComponent(currentPlayerId);
-      
-      // Store for verification
-      localStorage.setItem('sp_onesignal_playerid', currentPlayerId);
-      localStorage.setItem('sp_test_timestamp', new Date().toISOString());
-      localStorage.setItem('sp_test_url', url);
-      
-      debugLog('🚀 Stored in localStorage:');
-      debugLog('   sp_onesignal_playerid = ' + currentPlayerId);
-      debugLog('🚀 Navigating to portal...');
-      
-      // Delay to see debug
-      setTimeout(function() {
-        window.location.href = url;
-      }, 1000);
-    };
-
-    // Button click
     btn.addEventListener('click', async function() {
-      debugLog('🖱️ Button clicked');
       btnText.style.display = 'none';
       spinner.style.display = 'inline-block';
       btn.disabled = true;
 
       try {
-        debugLog('🔔 Requesting permission...');
         var accepted = await OneSignal.Notifications.requestPermission();
-        
         if (accepted) {
-          debugLog('✅ Permission granted!');
           var subId = await getSubscriptionId();
           var osId = await getOnesignalId();
           showModal(subId, osId);
         } else {
-          debugLog('❌ Permission denied', 'err');
           alert('لم يتم تفعيل الإشعارات');
         }
       } catch(e) {
-        debugLog('❌ Error: ' + e.message, 'err');
+        alert('خطأ: ' + e.message);
       } finally {
         btnText.style.display = 'inline';
         spinner.style.display = 'none';
