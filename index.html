@@ -35,15 +35,14 @@
       margin-left: 8px; vertical-align: middle;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
-    /* 🆕 Player ID display */
     #player-id-display {
       margin-top: 16px; padding: 12px; background: #F0FFF0;
       border: 2px solid #58CC02; border-radius: 12px;
       display: none; text-align: center;
     }
     #player-id-display .label { font-size: 0.75rem; color: #8E8E93; margin-bottom: 4px; }
-    #player-id-display .id { font-size: 0.7rem; font-weight: 700; color: #1C1C1E; word-break: break-all; direction: ltr; }
-    #player-id-display .copied { color: #58CC02; font-size: 0.7rem; margin-top: 4px; display: none; }
+    #player-id-display .id { font-size: 0.7rem; font-weight: 700; color: #1C1C1E; word-break: break-all; direction: ltr; cursor: pointer; }
+    #status-msg { margin-top: 12px; font-size: 0.85rem; font-weight: 700; display: none; }
   </style>
   <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
 </head>
@@ -55,111 +54,125 @@
       <span id="btn-text">تفعيل الإشعارات</span>
       <span class="spinner" style="display:none" id="spinner"></span>
     </button>
-    <p style="margin-top:12px; font-size:0.8rem; color:#8E8E93">
-      سيتم توجيهك إلى البوابة بعد التفعيل.
-    </p>
-    <!-- 🆕 Player ID display box -->
+    <div id="status-msg"></div>
     <div id="player-id-display">
       <div class="label">🆔 معرّف الاشتراك الخاص بك:</div>
       <div class="id" id="player-id-text">---</div>
-      <div class="copied" id="copied-msg">✅ تم النسخ!</div>
     </div>
+    <p style="margin-top:12px; font-size:0.8rem; color:#8E8E93">
+      سيتم توجيهك إلى البوابة بعد التفعيل.
+    </p>
   </div>
 
   <script>
-    // ---- Configuration ----
     var APP_ID = "49858ccc-d3e8-427b-ab43-d7bb52273c1c";
     var PORTAL_URL = "https://script.google.com/macros/s/AKfycbxoZNksqNVsTboElZpMpdEDBo07Z-qI7bw0r99HELSzr37xHp3eOvvPP_aZs5F3MIbx/exec?view=sp2";
 
     var btn = document.getElementById('enable-btn');
     var btnText = document.getElementById('btn-text');
     var spinner = document.getElementById('spinner');
+    var statusMsg = document.getElementById('status-msg');
     var playerIdDisplay = document.getElementById('player-id-display');
     var playerIdText = document.getElementById('player-id-text');
-    var copiedMsg = document.getElementById('copied-msg');
 
-    // 🆕 Show Player ID on screen
+    function showStatus(text, color) {
+      statusMsg.textContent = text;
+      statusMsg.style.color = color || '#58CC02';
+      statusMsg.style.display = 'block';
+    }
+
     function showPlayerId(playerId) {
-      if (playerId) {
-        playerIdText.textContent = playerId;
-        playerIdDisplay.style.display = 'block';
-        // Click to copy
-        playerIdText.style.cursor = 'pointer';
-        playerIdText.title = 'اضغط للنسخ';
-        playerIdText.onclick = function() {
-          navigator.clipboard.writeText(playerId).then(function() {
-            copiedMsg.style.display = 'block';
-            setTimeout(function() { copiedMsg.style.display = 'none'; }, 2000);
-          });
-        };
-      }
+      playerIdText.textContent = playerId;
+      playerIdDisplay.style.display = 'block';
     }
 
-    // Wait until OneSignal is fully ready
-    function waitForOneSignalReady(callback) {
-      if (window.OneSignal && OneSignal.Notifications && OneSignal.Notifications.requestPermission) {
-        callback();
-      } else {
-        setTimeout(function() { waitForOneSignalReady(callback); }, 200);
-      }
-    }
-
-    // 🆕 Redirect with Player ID in URL
-    function redirectWithPlayerId(playerId) {
+    function redirectToPortal(playerId) {
       var redirectUrl = PORTAL_URL;
       if (playerId) {
         redirectUrl += (redirectUrl.indexOf('?') === -1 ? '?' : '&') + 
                        'onesignal_player=' + encodeURIComponent(playerId);
       }
-      setTimeout(function() { window.location.href = redirectUrl; }, 1500);
+      showStatus('✅ جاري التوجيه إلى البوابة...', '#58CC02');
+      setTimeout(function() {
+        window.location.href = redirectUrl;
+      }, 1500);
     }
 
-    // Initialize OneSignal
-    window.addEventListener('load', function() {
-      if (!window.OneSignalDeferred) { window.OneSignalDeferred = []; }
-      OneSignalDeferred.push(async function(OneSignal) {
-        await OneSignal.init({
-          appId: APP_ID,
-          serviceWorkerPath: '/El-Rashid-Notifications/OneSignalSDKWorker.js',
-          serviceWorkerParam: { scope: '/El-Rashid-Notifications/' },
-          promptOptions: { autoPrompt: false }
-        });
-        waitForOneSignalReady(function() {
-          btn.disabled = false;
-        });
-      });
-    });
-
-    btn.addEventListener('click', function() {
+    function handleSubscribe() {
       btnText.style.display = 'none';
       spinner.style.display = 'inline-block';
       btn.disabled = true;
+      showStatus('⏳ جاري طلب الإذن...', '#8E8E93');
 
-      waitForOneSignalReady(function() {
-        OneSignal.Notifications.requestPermission().then(function(accepted) {
-          if (accepted) {
-            // 🆕 Get Player ID and show it on screen
-            OneSignal.getUserId().then(function(playerId) {
-              console.log('🆔 Player ID:', playerId);
-              showPlayerId(playerId);
-              btnText.textContent = '✅ تم التفعيل! جاري التوجيه...';
-              btnText.style.display = 'inline';
-              spinner.style.display = 'none';
-              redirectWithPlayerId(playerId);
-            }).catch(function() {
-              redirectWithPlayerId(null);
-            });
-          } else {
-            throw new Error('Permission denied');
-          }
-        }).catch(function() {
-          alert('لم يتم تفعيل الإشعارات. يمكنك المحاولة لاحقاً من إعدادات المتصفح.');
+      // 🔧 Use the RELIABLE showNativePrompt (not the new API)
+      if (!window.OneSignal || typeof OneSignal.showNativePrompt !== 'function') {
+        showStatus('⚠️ الخدمة لم تتحمل بعد. انتظر لحظة وحاول مجدداً.', '#FF4B4B');
+        btnText.style.display = 'inline';
+        spinner.style.display = 'none';
+        btn.disabled = false;
+        return;
+      }
+
+      // Check current permission first
+      OneSignal.getNotificationPermission().then(function(permission) {
+        console.log('📋 Current permission:', permission);
+
+        if (permission === 'granted') {
+          // Already subscribed – just get ID and redirect
+          console.log('✅ Already subscribed');
+          showStatus('✅ أنت مشترك بالفعل!', '#58CC02');
+          OneSignal.getUserId().then(function(playerId) {
+            console.log('🆔 Player ID:', playerId);
+            showPlayerId(playerId);
+            redirectToPortal(playerId);
+          }).catch(function() {
+            console.log('⚠️ Could not get Player ID');
+            redirectToPortal(null);
+          });
+        } else if (permission === 'denied') {
+          // Blocked – show instructions
+          showStatus('❌ الإشعارات محظورة. افتح إعدادات Chrome للموقع واسمح بالإشعارات.', '#FF4B4B');
           btnText.style.display = 'inline';
           spinner.style.display = 'none';
           btn.disabled = false;
-        });
+        } else {
+          // 'default' – show the native prompt
+          console.log('📢 Showing native prompt...');
+          OneSignal.showNativePrompt().then(function() {
+            console.log('✅ User accepted');
+            showStatus('✅ تم التفعيل!', '#58CC02');
+            // Get the Player ID
+            OneSignal.getUserId().then(function(playerId) {
+              console.log('🆔 Player ID:', playerId);
+              showPlayerId(playerId);
+              redirectToPortal(playerId);
+            }).catch(function() {
+              console.log('⚠️ Could not get Player ID');
+              redirectToPortal(null);
+            });
+          }).catch(function(err) {
+            console.error('❌ User denied or error:', err);
+            showStatus('❌ لم يتم تفعيل الإشعارات. يمكنك المحاولة لاحقاً.', '#FF4B4B');
+            btnText.style.display = 'inline';
+            spinner.style.display = 'none';
+            btn.disabled = false;
+          });
+        }
       });
+    }
+
+    // Initialize OneSignal
+    window.OneSignalDeferred = window.OneSignalDeferred || [];
+    OneSignalDeferred.push(async function(OneSignal) {
+      await OneSignal.init({
+        appId: APP_ID,
+        promptOptions: { autoPrompt: false }
+      });
+      btn.disabled = false;
+      console.log('✅ OneSignal ready');
     });
+
+    btn.addEventListener('click', handleSubscribe);
   </script>
 </body>
 </html>
