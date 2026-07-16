@@ -36,6 +36,22 @@
     }
     @keyframes spin { to { transform: rotate(360deg); } }
     
+    /* Debug panel */
+    .debug-panel {
+      background: #1C1C1E;
+      color: #58CC02;
+      padding: 12px;
+      border-radius: 12px;
+      margin-top: 16px;
+      font-family: 'Courier New', monospace;
+      font-size: 0.75rem;
+      text-align: left;
+      direction: ltr;
+      max-height: 200px;
+      overflow-y: auto;
+      display: none;
+    }
+    
     /* Modal Styles */
     .modal-overlay {
       display: none;
@@ -139,6 +155,10 @@
       <span id="btn-text">تفعيل الإشعارات</span>
       <span class="spinner" style="display:none" id="spinner"></span>
     </button>
+    
+    <!-- Debug Panel -->
+    <div class="debug-panel" id="debug-panel"></div>
+    
     <p style="margin-top:16px; font-size:0.8rem; color:#8E8E93">
       سيتم توجيهك إلى البوابة بعد التفعيل.
     </p>
@@ -161,6 +181,11 @@
         <div class="value" id="onesignal-id-display"></div>
       </div>
       
+      <div class="info-box" id="url-preview-box" style="display:none;">
+        <label>🔗 رابط البوابة مع المعرف:</label>
+        <div class="value" id="url-preview" style="font-size:0.7rem;"></div>
+      </div>
+      
       <div class="modal-buttons">
         <button class="btn-secondary" onclick="copyAllIds()">
           📋 نسخ المعرفات
@@ -175,20 +200,32 @@
   <script>
     // ---- Configuration ----
     var APP_ID = "49858ccc-d3e8-427b-ab43-d7bb52273c1c";
-    // This is your main portal URL - it will receive the player ID
     var PORTAL_URL = "https://script.google.com/macros/s/AKfycbxoZNksqNVsTboElZpMpdEDBo07Z-qI7bw0r99HELSzr37xHp3eOvvPP_aZs5F3MIbx/exec?view=sp2";
 
     var btn = document.getElementById('enable-btn');
     var btnText = document.getElementById('btn-text');
     var spinner = document.getElementById('spinner');
     var modalOverlay = document.getElementById('modal-overlay');
+    var debugPanel = document.getElementById('debug-panel');
     var currentSubscriptionId = null;
     var currentOnesignalId = null;
 
+    // Debug logging
+    function debugLog(msg) {
+      console.log(msg);
+      debugPanel.style.display = 'block';
+      debugPanel.innerHTML += '> ' + msg + '\n';
+      debugPanel.scrollTop = debugPanel.scrollHeight;
+    }
+
     // Initialize OneSignal
     window.addEventListener('load', function() {
+      debugLog('🚀 Page loaded, initializing OneSignal...');
+      
       if (!window.OneSignalDeferred) { window.OneSignalDeferred = []; }
       OneSignalDeferred.push(async function(OneSignal) {
+        debugLog('✅ OneSignal SDK ready');
+        
         await OneSignal.init({
           appId: APP_ID,
           serviceWorkerPath: '/El-Rashid-Notifications/OneSignalSDKWorker.js',
@@ -196,53 +233,79 @@
           promptOptions: { autoPrompt: false }
         });
         
-        // Enable button once SDK is ready
+        debugLog('✅ OneSignal initialized');
+        
+        // Check current subscription
+        try {
+          var existingId = await OneSignal.User.pushSubscription.getIdAsync();
+          if (existingId) {
+            debugLog('⚠️ Already subscribed! ID: ' + existingId);
+          } else {
+            debugLog('ℹ️ Not yet subscribed');
+          }
+        } catch(e) {
+          debugLog('ℹ️ Could not check: ' + e.message);
+        }
+        
         btn.disabled = false;
+        debugLog('✅ Button enabled');
       });
     });
 
     // Get subscription ID
     async function getSubscriptionId() {
+      debugLog('🔍 Getting subscription ID...');
+      
       try {
-        // Wait a moment for subscription to be created
-        await new Promise(resolve => setTimeout(resolve, 1500));
+        await new Promise(resolve => setTimeout(resolve, 2000));
         
-        // Try getIdAsync first
         if (OneSignal.User.pushSubscription.getIdAsync) {
+          debugLog('🔍 Trying getIdAsync()...');
           const id = await OneSignal.User.pushSubscription.getIdAsync();
-          if (id) return id;
+          if (id) {
+            debugLog('✅ Got ID: ' + id);
+            return id;
+          }
         }
         
-        // Try direct property
         if (OneSignal.User.pushSubscription.id) {
+          debugLog('✅ Got ID from property: ' + OneSignal.User.pushSubscription.id);
           return OneSignal.User.pushSubscription.id;
         }
         
+        debugLog('❌ No ID found');
         return null;
       } catch (error) {
-        console.error('Error getting subscription ID:', error);
+        debugLog('❌ Error: ' + error.message);
         return null;
       }
     }
 
     // Get OneSignal User ID
     async function getOnesignalId() {
+      debugLog('🔍 Getting OneSignal User ID...');
+      
       try {
-        // The OneSignal ID is the user-level ID
         if (OneSignal.User && OneSignal.User.onesignalId) {
+          debugLog('✅ Got OneSignal ID: ' + OneSignal.User.onesignalId);
           return OneSignal.User.onesignalId;
         }
+        debugLog('⚠️ No OneSignal ID');
         return null;
       } catch (error) {
-        console.error('Error getting OneSignal ID:', error);
+        debugLog('❌ Error: ' + error.message);
         return null;
       }
     }
 
-    // Show success modal
+    // Show modal
     function showSuccessModal(subscriptionId, onesignalId) {
       currentSubscriptionId = subscriptionId;
       currentOnesignalId = onesignalId;
+      
+      debugLog('📊 Data:');
+      debugLog('  Subscription: ' + (subscriptionId || 'N/A'));
+      debugLog('  OneSignal: ' + (onesignalId || 'N/A'));
       
       if (subscriptionId) {
         document.getElementById('subscription-box').style.display = 'block';
@@ -254,10 +317,18 @@
         document.getElementById('onesignal-id-display').textContent = onesignalId;
       }
       
+      var playerId = subscriptionId || onesignalId;
+      if (playerId) {
+        var finalUrl = PORTAL_URL + '&onesignal_player=' + encodeURIComponent(playerId);
+        document.getElementById('url-preview-box').style.display = 'block';
+        document.getElementById('url-preview').textContent = finalUrl;
+        debugLog('🔗 Portal URL: ' + finalUrl);
+      }
+      
       modalOverlay.classList.add('active');
     }
 
-    // Copy all IDs
+    // Copy IDs
     function copyAllIds() {
       let text = '';
       if (currentSubscriptionId) text += 'Subscription ID: ' + currentSubscriptionId + '\n';
@@ -270,8 +341,8 @@
       
       navigator.clipboard.writeText(text).then(() => {
         alert('✅ تم نسخ المعرفات!');
+        debugLog('📋 Copied to clipboard');
       }).catch(() => {
-        // Fallback
         const textArea = document.createElement('textarea');
         textArea.value = text;
         document.body.appendChild(textArea);
@@ -283,45 +354,46 @@
     }
     window.copyAllIds = copyAllIds;
 
-    // Continue to portal - send the player ID as 'onesignal_player'
+    // Continue to portal
     function continueToPortal() {
-      // Use subscription ID as the player ID (this is what your SP_Core2 expects)
       var playerId = currentSubscriptionId || currentOnesignalId;
       
       if (playerId) {
-        // Your SP_Core2 script looks for 'onesignal_player' parameter
-        var portalUrlWithPlayer = PORTAL_URL + '&onesignal_player=' + encodeURIComponent(playerId);
-        window.location.href = portalUrlWithPlayer;
+        // Store in localStorage as backup
+        localStorage.setItem('sp_onesignal_playerid', playerId);
+        debugLog('💾 Saved to localStorage: ' + playerId);
+        
+        var finalUrl = PORTAL_URL + '&onesignal_player=' + encodeURIComponent(playerId);
+        debugLog('🚀 Navigating to: ' + finalUrl);
+        window.location.href = finalUrl;
       } else {
-        // If no ID available, just go to portal
+        debugLog('⚠️ No player ID, navigating without');
         window.location.href = PORTAL_URL;
       }
     }
     window.continueToPortal = continueToPortal;
 
-    // Button click handler
+    // Button click
     btn.addEventListener('click', async function() {
+      debugLog('🖱️ Button clicked');
       btnText.style.display = 'none';
       spinner.style.display = 'inline-block';
       btn.disabled = true;
 
       try {
-        // Request notification permission
+        debugLog('🔔 Requesting permission...');
         const accepted = await OneSignal.Notifications.requestPermission();
         
         if (accepted) {
-          // Get the IDs
+          debugLog('✅ Permission granted!');
           const subscriptionId = await getSubscriptionId();
           const onesignalId = await getOnesignalId();
-          
-          // Show modal with IDs
           showSuccessModal(subscriptionId, onesignalId);
-          
         } else {
           throw new Error('Permission denied');
         }
       } catch (error) {
-        console.error('Error:', error);
+        debugLog('❌ Error: ' + error.message);
         alert('لم يتم تفعيل الإشعارات. يمكنك المحاولة لاحقاً من إعدادات المتصفح.');
       } finally {
         btnText.style.display = 'inline';
