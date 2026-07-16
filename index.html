@@ -98,7 +98,7 @@
       background: #F2F2F7;
       border-radius: 12px;
       padding: 16px;
-      margin-bottom: 20px;
+      margin-bottom: 12px;
       text-align: right;
     }
     .info-box label {
@@ -118,6 +118,7 @@
       display: flex;
       gap: 12px;
       justify-content: center;
+      margin-top: 20px;
     }
     .btn-primary {
       background: #58CC02;
@@ -178,16 +179,27 @@
     <div class="modal">
       <div class="modal-icon">✅</div>
       <h2>تم تفعيل الإشعارات بنجاح!</h2>
-      <p>تم تسجيل معرفك بنجاح:</p>
+      <p>تم تسجيل بياناتك بنجاح:</p>
+      
       <div class="info-box">
         <label>📱 معرف الطالب (External ID):</label>
         <div class="value" id="external-id-display"></div>
       </div>
+      
       <div class="info-box" id="subscription-box" style="display:none;">
         <label>🔑 معرف الاشتراك (Subscription ID):</label>
         <div class="value" id="subscription-id-display"></div>
       </div>
+      
+      <div class="info-box" id="onesignal-id-box" style="display:none;">
+        <label>👤 معرف ون سيجنال (OneSignal ID):</label>
+        <div class="value" id="onesignal-id-display"></div>
+      </div>
+      
       <div class="modal-buttons">
+        <button class="btn-secondary" onclick="copyAllIds()">
+          📋 نسخ المعرفات
+        </button>
         <button class="btn-primary" onclick="continueToPortal()">
           متابعة للبوابة ←
         </button>
@@ -207,14 +219,11 @@
     var modalOverlay = document.getElementById('modal-overlay');
     var currentExternalId = null;
     var currentSubscriptionId = null;
+    var currentOnesignalId = null;
 
     // Enable button when student ID is entered
     studentIdInput.addEventListener('input', function() {
-      if (studentIdInput.value.trim().length > 0) {
-        btn.disabled = false;
-      } else {
-        btn.disabled = true;
-      }
+      btn.disabled = studentIdInput.value.trim().length === 0;
     });
 
     // Initialize OneSignal
@@ -230,26 +239,63 @@
       });
     });
 
-    // Function to get subscription ID
-    async function getSubscriptionId() {
+    // Set external user ID using OneSignal API directly
+    async function setExternalUserId(externalId) {
       try {
-        // Try the documented API
-        if (OneSignal.User.pushSubscription.getIdAsync) {
-          const id = await OneSignal.User.pushSubscription.getIdAsync();
-          if (id) return id;
+        // Try the official SDK method first
+        if (OneSignal.User && OneSignal.User.login) {
+          await OneSignal.User.login(externalId);
+          console.log('Successfully set external_id via SDK:', externalId);
+          return true;
+        }
+      } catch (e) {
+        console.log('SDK login method failed, trying REST API...', e);
+      }
+      
+      // Fallback: Use REST API to set external_id
+      try {
+        // First get the subscription ID
+        const subscriptionId = await getSubscriptionId();
+        if (!subscriptionId) {
+          console.error('Cannot set external_id without subscription ID');
+          return false;
         }
         
-        // Try property access
+        // Call OneSignal REST API to update the user
+        const response = await fetch('https://onesignal.com/api/v1/apps/' + APP_ID + '/users/' + subscriptionId, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            identity: {
+              external_id: externalId
+            }
+          })
+        });
+        
+        if (response.ok) {
+          console.log('Successfully set external_id via REST API:', externalId);
+          return true;
+        } else {
+          console.error('REST API failed:', await response.text());
+          return false;
+        }
+      } catch (e) {
+        console.error('REST API error:', e);
+        return false;
+      }
+    }
+
+    // Get subscription ID
+    async function getSubscriptionId() {
+      try {
+        if (OneSignal.User.pushSubscription.getIdAsync) {
+          return await OneSignal.User.pushSubscription.getIdAsync();
+        }
         if (OneSignal.User.pushSubscription.id) {
           return OneSignal.User.pushSubscription.id;
         }
-        
-        // Try to get it from the subscription object
-        const subscription = OneSignal.User.pushSubscription;
-        if (subscription && subscription.id) {
-          return subscription.id;
-        }
-        
         return null;
       } catch (error) {
         console.error('Error getting subscription ID:', error);
@@ -257,10 +303,24 @@
       }
     }
 
+    // Get OneSignal User ID
+    async function getOnesignalId() {
+      try {
+        if (OneSignal.User && OneSignal.User.onesignalId) {
+          return OneSignal.User.onesignalId;
+        }
+        return null;
+      } catch (error) {
+        console.error('Error getting OneSignal ID:', error);
+        return null;
+      }
+    }
+
     // Show success modal
-    function showSuccessModal(externalId, subscriptionId) {
+    function showSuccessModal(externalId, subscriptionId, onesignalId) {
       currentExternalId = externalId;
       currentSubscriptionId = subscriptionId;
+      currentOnesignalId = onesignalId;
       
       document.getElementById('external-id-display').textContent = externalId;
       
@@ -269,21 +329,47 @@
         document.getElementById('subscription-id-display').textContent = subscriptionId;
       }
       
+      if (onesignalId) {
+        document.getElementById('onesignal-id-box').style.display = 'block';
+        document.getElementById('onesignal-id-display').textContent = onesignalId;
+      }
+      
       modalOverlay.classList.add('active');
     }
+
+    // Copy all IDs
+    function copyAllIds() {
+      let text = 'External ID: ' + currentExternalId;
+      if (currentSubscriptionId) text += '\nSubscription ID: ' + currentSubscriptionId;
+      if (currentOnesignalId) text += '\nOneSignal ID: ' + currentOnesignalId;
+      
+      navigator.clipboard.writeText(text).then(() => {
+        alert('✅ تم نسخ جميع المعرفات!');
+      }).catch(() => {
+        // Fallback
+        const textArea = document.createElement('textarea');
+        textArea.value = text;
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+        alert('✅ تم نسخ جميع المعرفات!');
+      });
+    }
+    window.copyAllIds = copyAllIds;
 
     // Continue to portal
     function continueToPortal() {
       let portalUrl = PORTAL_URL;
       
-      // Add external_id as parameter (this is your custom ID that you can use to send notifications)
       if (currentExternalId) {
         portalUrl += '&external_id=' + encodeURIComponent(currentExternalId);
       }
-      
-      // Also add subscription_id if available
       if (currentSubscriptionId) {
         portalUrl += '&subscription_id=' + encodeURIComponent(currentSubscriptionId);
+      }
+      if (currentOnesignalId) {
+        portalUrl += '&onesignal_id=' + encodeURIComponent(currentOnesignalId);
       }
       
       window.location.href = portalUrl;
@@ -308,28 +394,25 @@
         const accepted = await OneSignal.Notifications.requestPermission();
         
         if (accepted) {
-          // Login with external_id (this creates a user with your custom ID)
-          try {
-            await OneSignal.User.login(studentId);
-            console.log('Logged in with external_id:', studentId);
-          } catch (loginError) {
-            console.error('Login error:', loginError);
-            // Continue even if login fails - the external_id will still work for identification
-          }
+          // Wait a moment for subscription to be created
+          await new Promise(resolve => setTimeout(resolve, 2000));
           
-          // Add a tag for additional identification
+          // Get all IDs
+          const subscriptionId = await getSubscriptionId();
+          const onesignalId = await getOnesignalId();
+          
+          // Set external_id using the best available method
+          await setExternalUserId(studentId);
+          
+          // Also add a tag as backup identification
           try {
             await OneSignal.User.addTag('student_id', studentId);
-            console.log('Added tag: student_id =', studentId);
-          } catch (tagError) {
-            console.error('Tag error:', tagError);
+          } catch (e) {
+            console.log('Tag error (non-critical):', e);
           }
           
-          // Try to get subscription ID
-          const subscriptionId = await getSubscriptionId();
-          
-          // Show success modal
-          showSuccessModal(studentId, subscriptionId);
+          // Show success modal with all IDs
+          showSuccessModal(studentId, subscriptionId, onesignalId);
           
         } else {
           throw new Error('Permission denied');
