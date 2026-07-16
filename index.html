@@ -36,85 +36,58 @@
       margin-right: 8px; vertical-align: middle;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
-    .settings-hint {
-      margin-top: 16px; font-size: 0.75rem; color: #8E8E93;
-      background: #F9F9F9; padding: 10px 14px; border-radius: 12px;
-      text-align: right; line-height: 1.6;
-    }
-    .settings-hint b { color: #1C1C1E; }
   </style>
   <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
 </head>
 <body>
   <div class="card">
     <h1>📲 تفعيل الإشعارات</h1>
-    <p>للحصول على تنبيهات الواجبات الجديدة والملاحظات، يرجى السماح بالإشعارات.</p>
+    <p>للحصول على تنبيهات الواجبات الجديدة، يرجى السماح بالإشعارات.</p>
     <button id="enable-btn" class="btn" disabled>
       <span class="spinner" id="spinner"></span>
       <span id="btn-text">تفعيل الإشعارات</span>
     </button>
     <p style="margin-top:12px; font-size:0.8rem; color:#8E8E93">
-      سيتم توجيهك مباشرة إلى البوابة بعد التفعيل.
+      سيتم توجيهك إلى البوابة بعد التفعيل.
     </p>
-    
-    <div class="settings-hint">
-      <b>⚙️ لتغيير الصوت أو الاهتزاز لاحقاً:</b><br>
-      إعدادات الهاتف ← التطبيقات ← Chrome ← الإشعارات ← المواقع ← هذا الموقع
-    </div>
   </div>
 
   <script>
-    // ==================== CONFIGURATION ====================
+    // ---- Configuration ----
     var APP_ID = "49858ccc-d3e8-427b-ab43-d7bb52273c1c";
-    var PORTAL_URL = "YOUR_PORTAL_URL"; // ← Replace with your actual GAS portal URL
-    // =======================================================
+    var PORTAL_URL = "https://script.google.com/macros/s/AKfycbxoZNksqNVsTboElZpMpdEDBo07Z-qI7bw0r99HELSzr37xHp3eOvvPP_aZs5F3MIbx/exec?view=sp2";
 
     var btn = document.getElementById('enable-btn');
     var btnText = document.getElementById('btn-text');
     var spinner = document.getElementById('spinner');
 
-    // Wait for OneSignal to be fully ready
-    function waitForOneSignal(callback, timeout) {
-      timeout = timeout || 10000;
-      var start = Date.now();
-      function check() {
-        if (window.OneSignal && typeof OneSignal.init === 'function') {
-          callback();
-        } else if (Date.now() - start < timeout) {
-          setTimeout(check, 200);
-        } else {
-          alert('⚠️ تعذر تحميل خدمة الإشعارات. يرجى تحديث الصفحة أو استخدام متصفح Chrome.');
-          btnText.textContent = 'تعذر التحميل – حاول مجدداً';
-          btn.disabled = true;
-        }
-      }
-      check();
-    }
-
-    // Initialize OneSignal
-    function initOneSignal() {
-      window.OneSignalDeferred = window.OneSignalDeferred || [];
-      OneSignalDeferred.push(async function(OneSignal) {
-        await OneSignal.init({
-          appId: APP_ID,
-          promptOptions: { autoPrompt: false }
-        });
-        btn.disabled = false;
-      });
-    }
-
-    // Show loading state
     function showLoading() {
       btnText.style.display = 'none';
       spinner.style.display = 'inline-block';
       btn.disabled = true;
     }
 
-    // Hide loading state
     function hideLoading() {
       btnText.style.display = 'inline';
       spinner.style.display = 'none';
       btn.disabled = false;
+    }
+
+    // Wait for OneSignal to be ready
+    function waitForOneSignal(callback, timeout) {
+      timeout = timeout || 15000;
+      var start = Date.now();
+      function check() {
+        if (window.OneSignal && typeof OneSignal.showNativePrompt === 'function') {
+          callback();
+        } else if (Date.now() - start < timeout) {
+          setTimeout(check, 200);
+        } else {
+          alert('⚠️ تعذر تحميل خدمة الإشعارات. يرجى استخدام متصفح Chrome.');
+          hideLoading();
+        }
+      }
+      check();
     }
 
     // Redirect to portal with player ID
@@ -124,33 +97,64 @@
         redirectUrl += (redirectUrl.indexOf('?') === -1 ? '?' : '&') + 
                        'onesignal_player=' + encodeURIComponent(playerId);
       }
+      console.log('🔗 Redirecting to:', redirectUrl);
       setTimeout(function() {
         window.location.href = redirectUrl;
       }, 1000);
     }
 
-    // Handle the enable button click
-    btn.addEventListener('click', function() {
-      showLoading();
-
-      OneSignal.showNativePrompt().then(function() {
-        // Permission granted – get the player ID
-        OneSignal.getUserId().then(function(playerId) {
-          redirectToPortal(playerId);
-        }).catch(function() {
-          // Couldn't get player ID, redirect anyway
-          redirectToPortal(null);
-        });
-      }).catch(function() {
-        // Permission denied or error
-        alert('لم يتم تفعيل الإشعارات. يمكنك المحاولة لاحقاً من إعدادات المتصفح.');
-        hideLoading();
+    // Initialize OneSignal
+    window.OneSignalDeferred = window.OneSignalDeferred || [];
+    OneSignalDeferred.push(async function(OneSignal) {
+      await OneSignal.init({
+        appId: APP_ID,
+        promptOptions: { autoPrompt: false }
       });
+      btn.disabled = false;
+      console.log('✅ OneSignal ready');
     });
 
-    // Start everything
-    waitForOneSignal(function() {
-      initOneSignal();
+    // Button click handler
+    btn.addEventListener('click', function() {
+      showLoading();
+      console.log('🔔 Button clicked');
+
+      waitForOneSignal(function() {
+        // Check if already subscribed
+        OneSignal.getNotificationPermission().then(function(permission) {
+          console.log('📋 Current permission:', permission);
+          
+          if (permission === 'granted') {
+            // Already subscribed – just get player ID and redirect
+            console.log('✅ Already subscribed, getting player ID...');
+            OneSignal.getUserId().then(function(playerId) {
+              console.log('🆔 Player ID:', playerId);
+              redirectToPortal(playerId);
+            }).catch(function() {
+              console.log('⚠️ Could not get player ID, redirecting anyway');
+              redirectToPortal(null);
+            });
+          } else {
+            // Not yet subscribed – show prompt
+            console.log('📢 Showing native prompt...');
+            OneSignal.showNativePrompt().then(function() {
+              console.log('✅ User accepted');
+              // Get the player ID after accepting
+              OneSignal.getUserId().then(function(playerId) {
+                console.log('🆔 Player ID:', playerId);
+                redirectToPortal(playerId);
+              }).catch(function() {
+                console.log('⚠️ Could not get player ID');
+                redirectToPortal(null);
+              });
+            }).catch(function(err) {
+              console.error('❌ User denied:', err);
+              alert('لم يتم تفعيل الإشعارات. يمكنك المحاولة لاحقاً من إعدادات Chrome.');
+              hideLoading();
+            });
+          }
+        });
+      });
     });
   </script>
 </body>
