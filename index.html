@@ -53,7 +53,6 @@
   </div>
 
   <script>
-    // ---- Configuration ----
     var APP_ID = "49858ccc-d3e8-427b-ab43-d7bb52273c1c";
     var PORTAL_URL = "https://script.google.com/macros/s/AKfycbxoZNksqNVsTboElZpMpdEDBo07Z-qI7bw0r99HELSzr37xHp3eOvvPP_aZs5F3MIbx/exec?view=sp2";
 
@@ -73,37 +72,17 @@
       btn.disabled = false;
     }
 
-    // Wait for OneSignal to be ready
-    function waitForOneSignal(callback, timeout) {
-      timeout = timeout || 15000;
-      var start = Date.now();
-      function check() {
-        if (window.OneSignal && typeof OneSignal.showNativePrompt === 'function') {
-          callback();
-        } else if (Date.now() - start < timeout) {
-          setTimeout(check, 200);
-        } else {
-          alert('⚠️ تعذر تحميل خدمة الإشعارات. يرجى استخدام متصفح Chrome.');
-          hideLoading();
-        }
-      }
-      check();
-    }
-
-    // Redirect to portal with player ID
     function redirectToPortal(playerId) {
       var redirectUrl = PORTAL_URL;
       if (playerId) {
         redirectUrl += (redirectUrl.indexOf('?') === -1 ? '?' : '&') + 
                        'onesignal_player=' + encodeURIComponent(playerId);
       }
-      console.log('🔗 Redirecting to:', redirectUrl);
       setTimeout(function() {
         window.location.href = redirectUrl;
       }, 1000);
     }
 
-    // Initialize OneSignal
     window.OneSignalDeferred = window.OneSignalDeferred || [];
     OneSignalDeferred.push(async function(OneSignal) {
       await OneSignal.init({
@@ -111,49 +90,32 @@
         promptOptions: { autoPrompt: false }
       });
       btn.disabled = false;
-      console.log('✅ OneSignal ready');
     });
 
-    // Button click handler
     btn.addEventListener('click', function() {
       showLoading();
-      console.log('🔔 Button clicked');
 
-      waitForOneSignal(function() {
-        // Check if already subscribed
-        OneSignal.getNotificationPermission().then(function(permission) {
-          console.log('📋 Current permission:', permission);
-          
-          if (permission === 'granted') {
-            // Already subscribed – just get player ID and redirect
-            console.log('✅ Already subscribed, getting player ID...');
+      if (!window.OneSignal || typeof OneSignal.showNativePrompt !== 'function') {
+        alert('خدمة الإشعارات لم تتحمل بعد. انتظر لحظة وحاول مجدداً.');
+        hideLoading();
+        return;
+      }
+
+      OneSignal.getNotificationPermission().then(function(permission) {
+        if (permission === 'granted') {
+          OneSignal.getUserId().then(function(playerId) {
+            redirectToPortal(playerId);
+          });
+        } else {
+          OneSignal.showNativePrompt().then(function() {
             OneSignal.getUserId().then(function(playerId) {
-              console.log('🆔 Player ID:', playerId);
               redirectToPortal(playerId);
-            }).catch(function() {
-              console.log('⚠️ Could not get player ID, redirecting anyway');
-              redirectToPortal(null);
             });
-          } else {
-            // Not yet subscribed – show prompt
-            console.log('📢 Showing native prompt...');
-            OneSignal.showNativePrompt().then(function() {
-              console.log('✅ User accepted');
-              // Get the player ID after accepting
-              OneSignal.getUserId().then(function(playerId) {
-                console.log('🆔 Player ID:', playerId);
-                redirectToPortal(playerId);
-              }).catch(function() {
-                console.log('⚠️ Could not get player ID');
-                redirectToPortal(null);
-              });
-            }).catch(function(err) {
-              console.error('❌ User denied:', err);
-              alert('لم يتم تفعيل الإشعارات. يمكنك المحاولة لاحقاً من إعدادات Chrome.');
-              hideLoading();
-            });
-          }
-        });
+          }).catch(function() {
+            alert('لم يتم تفعيل الإشعارات. يمكنك المحاولة لاحقاً من إعدادات Chrome.');
+            hideLoading();
+          });
+        }
       });
     });
   </script>
