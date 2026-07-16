@@ -36,6 +36,31 @@
     }
     @keyframes spin { to { transform: rotate(360deg); } }
     
+    .input-group {
+      margin-bottom: 16px;
+      text-align: right;
+    }
+    .input-group label {
+      display: block;
+      margin-bottom: 8px;
+      color: #1C1C1E;
+      font-weight: 600;
+      font-size: 0.9rem;
+    }
+    .input-group input {
+      width: 100%;
+      padding: 12px;
+      border: 2px solid #E5E5EA;
+      border-radius: 12px;
+      font-size: 1rem;
+      box-sizing: border-box;
+      font-family: 'Cairo', sans-serif;
+    }
+    .input-group input:focus {
+      border-color: #58CC02;
+      outline: none;
+    }
+    
     /* Modal Styles */
     .modal-overlay {
       display: none;
@@ -63,67 +88,31 @@
       animation: modalSlideIn 0.3s ease-out;
     }
     @keyframes modalSlideIn {
-      from {
-        transform: translateY(20px);
-        opacity: 0;
-      }
-      to {
-        transform: translateY(0);
-        opacity: 1;
-      }
+      from { transform: translateY(20px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
     }
-    .modal-icon {
-      font-size: 3rem;
-      margin-bottom: 16px;
-    }
-    .modal h2 {
-      margin: 0 0 8px 0;
-      color: #1C1C1E;
-      font-size: 1.4rem;
-    }
-    .modal p {
-      color: #8E8E93;
-      margin-bottom: 20px;
-      font-size: 0.9rem;
-    }
-    .subscription-id-box {
+    .modal-icon { font-size: 3rem; margin-bottom: 16px; }
+    .modal h2 { margin: 0 0 8px 0; color: #1C1C1E; font-size: 1.4rem; }
+    .modal p { color: #8E8E93; margin-bottom: 20px; font-size: 0.9rem; }
+    .info-box {
       background: #F2F2F7;
       border-radius: 12px;
       padding: 16px;
       margin-bottom: 20px;
       text-align: right;
     }
-    .subscription-id-box label {
+    .info-box label {
       display: block;
       font-size: 0.8rem;
       color: #8E8E93;
-      margin-bottom: 8px;
+      margin-bottom: 4px;
     }
-    .id-display {
-      background: white;
-      padding: 12px;
-      border-radius: 8px;
+    .info-box .value {
       font-family: 'Courier New', monospace;
-      font-size: 0.8rem;
+      font-size: 0.9rem;
       word-break: break-all;
       color: #007AFF;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-    }
-    .copy-icon-btn {
-      background: none;
-      border: none;
-      cursor: pointer;
-      font-size: 1.2rem;
-      padding: 4px 8px;
-      border-radius: 6px;
-      transition: background 0.2s;
-      flex-shrink: 0;
-    }
-    .copy-icon-btn:hover {
-      background: #E5E5EA;
+      font-weight: 600;
     }
     .modal-buttons {
       display: flex;
@@ -161,16 +150,20 @@
       transition: background 0.2s;
       flex: 1;
     }
-    .btn-secondary:hover {
-      background: #E5E5EA;
-    }
+    .btn-secondary:hover { background: #E5E5EA; }
   </style>
   <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
 </head>
 <body>
   <div class="card">
     <h1>📲 تفعيل الإشعارات</h1>
-    <p>للحصول على تنبيهات الواجبات الجديدة، يرجى السماح بالإشعارات.</p>
+    <p>للحصول على تنبيهات الواجبات الجديدة، يرجى إدخال معرف الطالب ثم السماح بالإشعارات.</p>
+    
+    <div class="input-group">
+      <label for="student-id">معرف الطالب (رقم الهوية أو البريد الإلكتروني):</label>
+      <input type="text" id="student-id" placeholder="أدخل معرف الطالب" dir="ltr">
+    </div>
+    
     <button id="enable-btn" class="btn" disabled>
       <span id="btn-text">تفعيل الإشعارات</span>
       <span class="spinner" style="display:none" id="spinner"></span>
@@ -180,25 +173,21 @@
     </p>
   </div>
 
-  <!-- Modal Popup -->
+  <!-- Success Modal -->
   <div class="modal-overlay" id="modal-overlay">
     <div class="modal">
       <div class="modal-icon">✅</div>
       <h2>تم تفعيل الإشعارات بنجاح!</h2>
-      <p>هذا هو معرف الاشتراك الخاص بك:</p>
-      <div class="subscription-id-box">
-        <label>📱 معرف الاشتراك (Subscription ID):</label>
-        <div class="id-display">
-          <span id="subscription-id-text">جاري تحميل المعرف...</span>
-          <button class="copy-icon-btn" onclick="copyToClipboard()" title="نسخ المعرف">
-            📋
-          </button>
-        </div>
+      <p>تم تسجيل معرفك بنجاح:</p>
+      <div class="info-box">
+        <label>📱 معرف الطالب (External ID):</label>
+        <div class="value" id="external-id-display"></div>
+      </div>
+      <div class="info-box" id="subscription-box" style="display:none;">
+        <label>🔑 معرف الاشتراك (Subscription ID):</label>
+        <div class="value" id="subscription-id-display"></div>
       </div>
       <div class="modal-buttons">
-        <button class="btn-secondary" onclick="copyAndContinue()">
-          📋 نسخ ومتابعة
-        </button>
         <button class="btn-primary" onclick="continueToPortal()">
           متابعة للبوابة ←
         </button>
@@ -214,9 +203,19 @@
     var btn = document.getElementById('enable-btn');
     var btnText = document.getElementById('btn-text');
     var spinner = document.getElementById('spinner');
+    var studentIdInput = document.getElementById('student-id');
     var modalOverlay = document.getElementById('modal-overlay');
-    var subscriptionIdText = document.getElementById('subscription-id-text');
+    var currentExternalId = null;
     var currentSubscriptionId = null;
+
+    // Enable button when student ID is entered
+    studentIdInput.addEventListener('input', function() {
+      if (studentIdInput.value.trim().length > 0) {
+        btn.disabled = false;
+      } else {
+        btn.disabled = true;
+      }
+    });
 
     // Initialize OneSignal
     window.addEventListener('load', function() {
@@ -228,48 +227,29 @@
           serviceWorkerParam: { scope: '/El-Rashid-Notifications/' },
           promptOptions: { autoPrompt: false }
         });
-        
-        // Enable the button
-        btn.disabled = false;
-        
-        // Set up subscription change listener to get ID automatically
-        OneSignal.User.pushSubscription.addEventListener('change', function(subscription) {
-          console.log('Subscription changed:', subscription);
-          if (subscription.current && subscription.current.id) {
-            console.log('Subscription ID:', subscription.current.id);
-            // Store the ID if we have a modal open
-            if (modalOverlay.classList.contains('active') && !currentSubscriptionId) {
-              updateModalWithId(subscription.current.id);
-            }
-          }
-        });
       });
     });
 
-    // Function to get subscription ID - using official web API
+    // Function to get subscription ID
     async function getSubscriptionId() {
       try {
-        // Method 1: Direct API call as per documentation
-        const subscriptionId = await OneSignal.User.pushSubscription.getIdAsync();
-        if (subscriptionId) {
-          console.log('Got subscription ID via getIdAsync:', subscriptionId);
-          return subscriptionId;
+        // Try the documented API
+        if (OneSignal.User.pushSubscription.getIdAsync) {
+          const id = await OneSignal.User.pushSubscription.getIdAsync();
+          if (id) return id;
         }
         
-        // Method 2: Check if it's already available as a property
+        // Try property access
         if (OneSignal.User.pushSubscription.id) {
-          console.log('Got subscription ID via property:', OneSignal.User.pushSubscription.id);
           return OneSignal.User.pushSubscription.id;
         }
         
-        // Method 3: Try getting the user-level OneSignal ID as fallback
-        const onesignalId = OneSignal.User.onesignalId;
-        if (onesignalId) {
-          console.log('Got OneSignal User ID:', onesignalId);
-          return onesignalId;
+        // Try to get it from the subscription object
+        const subscription = OneSignal.User.pushSubscription;
+        if (subscription && subscription.id) {
+          return subscription.id;
         }
         
-        console.log('No ID available yet');
         return null;
       } catch (error) {
         console.error('Error getting subscription ID:', error);
@@ -277,68 +257,48 @@
       }
     }
 
-    // Update modal with subscription ID
-    function updateModalWithId(subscriptionId) {
+    // Show success modal
+    function showSuccessModal(externalId, subscriptionId) {
+      currentExternalId = externalId;
+      currentSubscriptionId = subscriptionId;
+      
+      document.getElementById('external-id-display').textContent = externalId;
+      
       if (subscriptionId) {
-        currentSubscriptionId = subscriptionId;
-        subscriptionIdText.textContent = subscriptionId;
-      } else {
-        subscriptionIdText.textContent = 'لم يتم العثور على المعرف. يرجى المحاولة مرة أخرى.';
+        document.getElementById('subscription-box').style.display = 'block';
+        document.getElementById('subscription-id-display').textContent = subscriptionId;
       }
-    }
-
-    // Copy to clipboard function
-    async function copyToClipboard() {
-      if (currentSubscriptionId && currentSubscriptionId !== 'جاري تحميل المعرف...') {
-        try {
-          await navigator.clipboard.writeText(currentSubscriptionId);
-          alert('✅ تم نسخ المعرف بنجاح!');
-        } catch (err) {
-          // Fallback
-          const textArea = document.createElement('textarea');
-          textArea.value = currentSubscriptionId;
-          textArea.style.position = 'fixed';
-          textArea.style.left = '-9999px';
-          document.body.appendChild(textArea);
-          textArea.select();
-          try {
-            document.execCommand('copy');
-            alert('✅ تم نسخ المعرف بنجاح!');
-          } catch (err) {
-            alert('❌ فشل نسخ المعرف. يرجى نسخه يدوياً.');
-          }
-          document.body.removeChild(textArea);
-        }
-      } else {
-        alert('⚠️ لا يوجد معرف لنسخه بعد.');
-      }
-    }
-
-    // Copy and continue
-    async function copyAndContinue() {
-      if (currentSubscriptionId && currentSubscriptionId !== 'جاري تحميل المعرف...') {
-        await copyToClipboard();
-      }
-      continueToPortal();
+      
+      modalOverlay.classList.add('active');
     }
 
     // Continue to portal
     function continueToPortal() {
-      if (currentSubscriptionId && currentSubscriptionId !== 'جاري تحميل المعرف...' && currentSubscriptionId !== 'لم يتم العثور على المعرف. يرجى المحاولة مرة أخرى.') {
-        const portalUrlWithId = PORTAL_URL + '&subscription_id=' + encodeURIComponent(currentSubscriptionId);
-        window.location.href = portalUrlWithId;
-      } else {
-        window.location.href = PORTAL_URL;
+      let portalUrl = PORTAL_URL;
+      
+      // Add external_id as parameter (this is your custom ID that you can use to send notifications)
+      if (currentExternalId) {
+        portalUrl += '&external_id=' + encodeURIComponent(currentExternalId);
       }
+      
+      // Also add subscription_id if available
+      if (currentSubscriptionId) {
+        portalUrl += '&subscription_id=' + encodeURIComponent(currentSubscriptionId);
+      }
+      
+      window.location.href = portalUrl;
     }
-
-    // Make functions globally accessible
-    window.copyToClipboard = copyToClipboard;
-    window.copyAndContinue = copyAndContinue;
     window.continueToPortal = continueToPortal;
 
     // Button click handler
     btn.addEventListener('click', async function() {
+      const studentId = studentIdInput.value.trim();
+      
+      if (!studentId) {
+        alert('الرجاء إدخال معرف الطالب أولاً');
+        return;
+      }
+      
       btnText.style.display = 'none';
       spinner.style.display = 'inline-block';
       btn.disabled = true;
@@ -348,24 +308,28 @@
         const accepted = await OneSignal.Notifications.requestPermission();
         
         if (accepted) {
-          // Show modal immediately
-          modalOverlay.classList.add('active');
-          
-          // Try to get subscription ID with retries
-          let subscriptionId = null;
-          let attempts = 0;
-          
-          while (!subscriptionId && attempts < 5) {
-            subscriptionId = await getSubscriptionId();
-            if (!subscriptionId) {
-              attempts++;
-              await new Promise(resolve => setTimeout(resolve, 1000));
-              console.log(`Retry attempt ${attempts} to get subscription ID...`);
-            }
+          // Login with external_id (this creates a user with your custom ID)
+          try {
+            await OneSignal.User.login(studentId);
+            console.log('Logged in with external_id:', studentId);
+          } catch (loginError) {
+            console.error('Login error:', loginError);
+            // Continue even if login fails - the external_id will still work for identification
           }
           
-          // Update modal with the ID
-          updateModalWithId(subscriptionId);
+          // Add a tag for additional identification
+          try {
+            await OneSignal.User.addTag('student_id', studentId);
+            console.log('Added tag: student_id =', studentId);
+          } catch (tagError) {
+            console.error('Tag error:', tagError);
+          }
+          
+          // Try to get subscription ID
+          const subscriptionId = await getSubscriptionId();
+          
+          // Show success modal
+          showSuccessModal(studentId, subscriptionId);
           
         } else {
           throw new Error('Permission denied');
@@ -373,9 +337,7 @@
       } catch (error) {
         console.error('Error:', error);
         alert('لم يتم تفعيل الإشعارات. يمكنك المحاولة لاحقاً من إعدادات المتصفح.');
-        modalOverlay.classList.remove('active');
       } finally {
-        // Reset button
         btnText.style.display = 'inline';
         spinner.style.display = 'none';
         btn.disabled = false;
