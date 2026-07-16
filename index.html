@@ -44,13 +44,16 @@
       border-radius: 12px;
       margin-top: 16px;
       font-family: 'Courier New', monospace;
-      font-size: 0.75rem;
+      font-size: 0.7rem;
       text-align: left;
       direction: ltr;
-      max-height: 200px;
+      max-height: 150px;
       overflow-y: auto;
-      display: none;
+      display: block;
     }
+    .debug-panel .warn { color: #FFC800; }
+    .debug-panel .err { color: #FF4B4B; }
+    .debug-panel .ok { color: #58CC02; }
     
     /* Modal Styles */
     .modal-overlay {
@@ -65,9 +68,7 @@
       justify-content: center;
       align-items: center;
     }
-    .modal-overlay.active {
-      display: flex;
-    }
+    .modal-overlay.active { display: flex; }
     .modal {
       background: white;
       border-radius: 20px;
@@ -76,73 +77,36 @@
       width: 90%;
       text-align: center;
       box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-      animation: modalSlideIn 0.3s ease-out;
-    }
-    @keyframes modalSlideIn {
-      from { transform: translateY(20px); opacity: 0; }
-      to { transform: translateY(0); opacity: 1; }
     }
     .modal-icon { font-size: 3rem; margin-bottom: 16px; }
     .modal h2 { margin: 0 0 8px 0; color: #1C1C1E; font-size: 1.4rem; }
-    .modal p { color: #8E8E93; margin-bottom: 20px; font-size: 0.9rem; }
     .info-box {
       background: #F2F2F7;
       border-radius: 12px;
-      padding: 16px;
-      margin-bottom: 12px;
+      padding: 12px;
+      margin-bottom: 10px;
       text-align: right;
     }
-    .info-box label {
-      display: block;
-      font-size: 0.8rem;
-      color: #8E8E93;
-      margin-bottom: 4px;
-    }
+    .info-box label { display: block; font-size: 0.75rem; color: #8E8E93; margin-bottom: 4px; }
     .info-box .value {
       font-family: 'Courier New', monospace;
-      font-size: 0.9rem;
+      font-size: 0.8rem;
       word-break: break-all;
       color: #007AFF;
       font-weight: 600;
     }
-    .modal-buttons {
-      display: flex;
-      gap: 12px;
-      justify-content: center;
-      margin-top: 20px;
-    }
+    .modal-buttons { display: flex; gap: 12px; justify-content: center; margin-top: 20px; }
     .btn-primary {
-      background: #58CC02;
-      color: white;
-      border: none;
-      padding: 12px 28px;
-      font-size: 1rem;
-      font-weight: 700;
-      border-radius: 50px;
-      cursor: pointer;
-      font-family: 'Cairo', sans-serif;
-      box-shadow: 0 4px 0 #46A302;
-      transition: all 0.2s;
-      flex: 1;
-    }
-    .btn-primary:active {
-      transform: translateY(2px);
-      box-shadow: 0 2px 0 #46A302;
+      background: #58CC02; color: white; border: none;
+      padding: 12px 28px; font-size: 1rem; font-weight: 700;
+      border-radius: 50px; cursor: pointer; font-family: 'Cairo', sans-serif;
+      box-shadow: 0 4px 0 #46A302; flex: 1;
     }
     .btn-secondary {
-      background: #F2F2F7;
-      color: #1C1C1E;
-      border: none;
-      padding: 12px 28px;
-      font-size: 1rem;
-      font-weight: 600;
-      border-radius: 50px;
-      cursor: pointer;
-      font-family: 'Cairo', sans-serif;
-      transition: background 0.2s;
-      flex: 1;
+      background: #F2F2F7; color: #1C1C1E; border: none;
+      padding: 12px 28px; font-size: 1rem; font-weight: 600;
+      border-radius: 50px; cursor: pointer; font-family: 'Cairo', sans-serif; flex: 1;
     }
-    .btn-secondary:hover { background: #E5E5EA; }
   </style>
   <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
 </head>
@@ -156,8 +120,10 @@
       <span class="spinner" style="display:none" id="spinner"></span>
     </button>
     
-    <!-- Debug Panel -->
-    <div class="debug-panel" id="debug-panel"></div>
+    <!-- Debug Panel - ALWAYS VISIBLE for testing -->
+    <div class="debug-panel" id="debug-panel">
+      <span class="ok">🟢 Waiting for OneSignal...</span>
+    </div>
     
     <p style="margin-top:16px; font-size:0.8rem; color:#8E8E93">
       سيتم توجيهك إلى البوابة بعد التفعيل.
@@ -169,36 +135,31 @@
     <div class="modal">
       <div class="modal-icon">✅</div>
       <h2>تم تفعيل الإشعارات بنجاح!</h2>
-      <p>تم الحصول على معرفات الاشتراك الخاصة بك:</p>
+      <p>تم الحصول على المعرفات:</p>
       
-      <div class="info-box" id="subscription-box" style="display:none;">
-        <label>🔑 معرف الاشتراك (Subscription ID):</label>
-        <div class="value" id="subscription-id-display"></div>
+      <div class="info-box">
+        <label>🔑 Subscription ID:</label>
+        <div class="value" id="sub-id-display">-</div>
       </div>
       
-      <div class="info-box" id="onesignal-id-box" style="display:none;">
-        <label>👤 معرف ون سيجنال (OneSignal ID):</label>
-        <div class="value" id="onesignal-id-display"></div>
+      <div class="info-box">
+        <label>👤 OneSignal ID:</label>
+        <div class="value" id="onesignal-id-display">-</div>
       </div>
       
-      <div class="info-box" id="url-preview-box" style="display:none;">
-        <label>🔗 رابط البوابة مع المعرف:</label>
-        <div class="value" id="url-preview" style="font-size:0.7rem;"></div>
+      <div class="info-box">
+        <label>🔗 سيتم الإرسال كـ onesignal_player:</label>
+        <div class="value" id="player-id-display" style="color:#58CC02;">-</div>
       </div>
       
       <div class="modal-buttons">
-        <button class="btn-secondary" onclick="copyAllIds()">
-          📋 نسخ المعرفات
-        </button>
-        <button class="btn-primary" onclick="continueToPortal()">
-          متابعة للبوابة ←
-        </button>
+        <button class="btn-secondary" onclick="testCopy()">📋 نسخ</button>
+        <button class="btn-primary" onclick="testGo()">متابعة ←</button>
       </div>
     </div>
   </div>
 
   <script>
-    // ---- Configuration ----
     var APP_ID = "49858ccc-d3e8-427b-ab43-d7bb52273c1c";
     var PORTAL_URL = "https://script.google.com/macros/s/AKfycbxoZNksqNVsTboElZpMpdEDBo07Z-qI7bw0r99HELSzr37xHp3eOvvPP_aZs5F3MIbx/exec?view=sp2";
 
@@ -207,24 +168,23 @@
     var spinner = document.getElementById('spinner');
     var modalOverlay = document.getElementById('modal-overlay');
     var debugPanel = document.getElementById('debug-panel');
-    var currentSubscriptionId = null;
-    var currentOnesignalId = null;
+    var currentPlayerId = null;
 
-    // Debug logging
-    function debugLog(msg) {
-      console.log(msg);
-      debugPanel.style.display = 'block';
-      debugPanel.innerHTML += '> ' + msg + '\n';
+    function debugLog(msg, type) {
+      type = type || 'ok';
+      var color = type === 'err' ? 'err' : type === 'warn' ? 'warn' : 'ok';
+      debugPanel.innerHTML += '\n<span class="' + color + '">' + msg + '</span>';
       debugPanel.scrollTop = debugPanel.scrollHeight;
+      console.log(msg);
     }
 
-    // Initialize OneSignal
+    // Initialize
     window.addEventListener('load', function() {
-      debugLog('🚀 Page loaded, initializing OneSignal...');
+      debugLog('🟢 Page loaded');
       
       if (!window.OneSignalDeferred) { window.OneSignalDeferred = []; }
       OneSignalDeferred.push(async function(OneSignal) {
-        debugLog('✅ OneSignal SDK ready');
+        debugLog('🟢 SDK ready');
         
         await OneSignal.init({
           appId: APP_ID,
@@ -233,145 +193,106 @@
           promptOptions: { autoPrompt: false }
         });
         
-        debugLog('✅ OneSignal initialized');
-        
-        // Check current subscription
-        try {
-          var existingId = await OneSignal.User.pushSubscription.getIdAsync();
-          if (existingId) {
-            debugLog('⚠️ Already subscribed! ID: ' + existingId);
-          } else {
-            debugLog('ℹ️ Not yet subscribed');
-          }
-        } catch(e) {
-          debugLog('ℹ️ Could not check: ' + e.message);
-        }
-        
+        debugLog('🟢 Initialized');
         btn.disabled = false;
-        debugLog('✅ Button enabled');
       });
     });
 
-    // Get subscription ID
     async function getSubscriptionId() {
       debugLog('🔍 Getting subscription ID...');
-      
       try {
         await new Promise(resolve => setTimeout(resolve, 2000));
         
+        var id = null;
+        
         if (OneSignal.User.pushSubscription.getIdAsync) {
-          debugLog('🔍 Trying getIdAsync()...');
-          const id = await OneSignal.User.pushSubscription.getIdAsync();
-          if (id) {
-            debugLog('✅ Got ID: ' + id);
-            return id;
-          }
+          id = await OneSignal.User.pushSubscription.getIdAsync();
+        }
+        if (!id && OneSignal.User.pushSubscription.id) {
+          id = OneSignal.User.pushSubscription.id;
         }
         
-        if (OneSignal.User.pushSubscription.id) {
-          debugLog('✅ Got ID from property: ' + OneSignal.User.pushSubscription.id);
-          return OneSignal.User.pushSubscription.id;
+        if (id) {
+          debugLog('✅ Subscription ID: ' + id.substring(0,20) + '...');
+          return id;
         }
-        
-        debugLog('❌ No ID found');
+        debugLog('⚠️ No subscription ID', 'warn');
         return null;
-      } catch (error) {
-        debugLog('❌ Error: ' + error.message);
+      } catch(e) {
+        debugLog('❌ Error: ' + e.message, 'err');
         return null;
       }
     }
 
-    // Get OneSignal User ID
     async function getOnesignalId() {
-      debugLog('🔍 Getting OneSignal User ID...');
-      
+      debugLog('🔍 Getting OneSignal ID...');
       try {
         if (OneSignal.User && OneSignal.User.onesignalId) {
-          debugLog('✅ Got OneSignal ID: ' + OneSignal.User.onesignalId);
-          return OneSignal.User.onesignalId;
+          var id = OneSignal.User.onesignalId;
+          debugLog('✅ OneSignal ID: ' + id.substring(0,20) + '...');
+          return id;
         }
-        debugLog('⚠️ No OneSignal ID');
+        debugLog('⚠️ No OneSignal ID', 'warn');
         return null;
-      } catch (error) {
-        debugLog('❌ Error: ' + error.message);
+      } catch(e) {
+        debugLog('❌ Error: ' + e.message, 'err');
         return null;
       }
     }
 
-    // Show modal
-    function showSuccessModal(subscriptionId, onesignalId) {
-      currentSubscriptionId = subscriptionId;
-      currentOnesignalId = onesignalId;
+    function showModal(subscriptionId, onesignalId) {
+      currentPlayerId = subscriptionId || onesignalId;
       
-      debugLog('📊 Data:');
-      debugLog('  Subscription: ' + (subscriptionId || 'N/A'));
-      debugLog('  OneSignal: ' + (onesignalId || 'N/A'));
+      document.getElementById('sub-id-display').textContent = subscriptionId || 'غير متوفر';
+      document.getElementById('onesignal-id-display').textContent = onesignalId || 'غير متوفر';
+      document.getElementById('player-id-display').textContent = currentPlayerId || 'لا يوجد';
       
-      if (subscriptionId) {
-        document.getElementById('subscription-box').style.display = 'block';
-        document.getElementById('subscription-id-display').textContent = subscriptionId;
-      }
-      
-      if (onesignalId) {
-        document.getElementById('onesignal-id-box').style.display = 'block';
-        document.getElementById('onesignal-id-display').textContent = onesignalId;
-      }
-      
-      var playerId = subscriptionId || onesignalId;
-      if (playerId) {
-        var finalUrl = PORTAL_URL + '&onesignal_player=' + encodeURIComponent(playerId);
-        document.getElementById('url-preview-box').style.display = 'block';
-        document.getElementById('url-preview').textContent = finalUrl;
-        debugLog('🔗 Portal URL: ' + finalUrl);
-      }
+      debugLog('📊 Modal shown');
+      debugLog('   Player ID to send: ' + (currentPlayerId || 'NONE'));
+      debugLog('   Portal URL will be: ' + PORTAL_URL + '&onesignal_player=' + encodeURIComponent(currentPlayerId || ''));
       
       modalOverlay.classList.add('active');
     }
 
-    // Copy IDs
-    function copyAllIds() {
-      let text = '';
-      if (currentSubscriptionId) text += 'Subscription ID: ' + currentSubscriptionId + '\n';
-      if (currentOnesignalId) text += 'OneSignal ID: ' + currentOnesignalId;
-      
-      if (!text) {
-        alert('⚠️ لا توجد معرفات لنسخها');
+    // TEST: Copy the URL that will be used
+    window.testCopy = function() {
+      if (!currentPlayerId) {
+        alert('لا يوجد معرف!');
+        return;
+      }
+      var url = PORTAL_URL + '&onesignal_player=' + encodeURIComponent(currentPlayerId);
+      navigator.clipboard.writeText(url).then(function() {
+        alert('✅ تم نسخ الرابط الكامل!\n\n' + url);
+        debugLog('📋 Copied: ' + url);
+      }).catch(function() {
+        prompt('انسخ الرابط:', url);
+      });
+    };
+
+    // TEST: Go to portal
+    window.testGo = function() {
+      if (!currentPlayerId) {
+        alert('لا يوجد معرف! سيتم التوجيه بدون معرف');
+        window.location.href = PORTAL_URL;
         return;
       }
       
-      navigator.clipboard.writeText(text).then(() => {
-        alert('✅ تم نسخ المعرفات!');
-        debugLog('📋 Copied to clipboard');
-      }).catch(() => {
-        const textArea = document.createElement('textarea');
-        textArea.value = text;
-        document.body.appendChild(textArea);
-        textArea.select();
-        document.execCommand('copy');
-        document.body.removeChild(textArea);
-        alert('✅ تم نسخ المعرفات!');
-      });
-    }
-    window.copyAllIds = copyAllIds;
-
-    // Continue to portal
-    function continueToPortal() {
-      var playerId = currentSubscriptionId || currentOnesignalId;
+      var url = PORTAL_URL + '&onesignal_player=' + encodeURIComponent(currentPlayerId);
       
-      if (playerId) {
-        // Store in localStorage as backup
-        localStorage.setItem('sp_onesignal_playerid', playerId);
-        debugLog('💾 Saved to localStorage: ' + playerId);
-        
-        var finalUrl = PORTAL_URL + '&onesignal_player=' + encodeURIComponent(playerId);
-        debugLog('🚀 Navigating to: ' + finalUrl);
-        window.location.href = finalUrl;
-      } else {
-        debugLog('⚠️ No player ID, navigating without');
-        window.location.href = PORTAL_URL;
-      }
-    }
-    window.continueToPortal = continueToPortal;
+      // Store for verification
+      localStorage.setItem('sp_onesignal_playerid', currentPlayerId);
+      localStorage.setItem('sp_test_timestamp', new Date().toISOString());
+      localStorage.setItem('sp_test_url', url);
+      
+      debugLog('🚀 Stored in localStorage:');
+      debugLog('   sp_onesignal_playerid = ' + currentPlayerId);
+      debugLog('🚀 Navigating to portal...');
+      
+      // Delay to see debug
+      setTimeout(function() {
+        window.location.href = url;
+      }, 1000);
+    };
 
     // Button click
     btn.addEventListener('click', async function() {
@@ -382,19 +303,19 @@
 
       try {
         debugLog('🔔 Requesting permission...');
-        const accepted = await OneSignal.Notifications.requestPermission();
+        var accepted = await OneSignal.Notifications.requestPermission();
         
         if (accepted) {
           debugLog('✅ Permission granted!');
-          const subscriptionId = await getSubscriptionId();
-          const onesignalId = await getOnesignalId();
-          showSuccessModal(subscriptionId, onesignalId);
+          var subId = await getSubscriptionId();
+          var osId = await getOnesignalId();
+          showModal(subId, osId);
         } else {
-          throw new Error('Permission denied');
+          debugLog('❌ Permission denied', 'err');
+          alert('لم يتم تفعيل الإشعارات');
         }
-      } catch (error) {
-        debugLog('❌ Error: ' + error.message);
-        alert('لم يتم تفعيل الإشعارات. يمكنك المحاولة لاحقاً من إعدادات المتصفح.');
+      } catch(e) {
+        debugLog('❌ Error: ' + e.message, 'err');
       } finally {
         btnText.style.display = 'inline';
         spinner.style.display = 'none';
