@@ -69,13 +69,28 @@
       }
     }
 
+    // 🆕 NEW: Get Player ID and redirect with it in URL
+    function redirectWithPlayerId() {
+      OneSignal.getUserId().then(function(playerId) {
+        var redirectUrl = PORTAL_URL;
+        if (playerId) {
+          redirectUrl += (redirectUrl.indexOf('?') === -1 ? '?' : '&') + 
+                         'onesignal_player=' + encodeURIComponent(playerId);
+        }
+        setTimeout(function() { window.location.href = redirectUrl; }, 1000);
+      }).catch(function() {
+        // If can't get Player ID, just redirect normally
+        setTimeout(function() { window.location.href = PORTAL_URL; }, 1000);
+      });
+    }
+
     // Initialize OneSignal with absolute path and correct subdirectory scope
     window.addEventListener('load', function() {
       if (!window.OneSignalDeferred) { window.OneSignalDeferred = []; }
       OneSignalDeferred.push(async function(OneSignal) {
         await OneSignal.init({
           appId: APP_ID,
-          serviceWorkerPath: '/El-Rashid-Notifications/OneSignalSDKWorker.js',   // <-- absolute path from root
+          serviceWorkerPath: '/El-Rashid-Notifications/OneSignalSDKWorker.js',
           serviceWorkerParam: { scope: '/El-Rashid-Notifications/' },
           promptOptions: { autoPrompt: false }
         });
@@ -94,8 +109,8 @@
       waitForOneSignalReady(function() {
         OneSignal.Notifications.requestPermission().then(function(accepted) {
           if (accepted) {
-            // Redirect to the portal after a short delay
-            setTimeout(function() { window.location.href = PORTAL_URL; }, 1000);
+            // 🆕 CHANGED: Redirect with Player ID
+            redirectWithPlayerId();
           } else {
             throw new Error('Permission denied');
           }
