@@ -24,88 +24,133 @@
       border-radius: 50px; cursor: pointer;
       box-shadow: 0 4px 0 #46A302, 0 6px 20px rgba(88,204,2,0.3);
       transition: all 0.2s; font-family: 'Cairo', sans-serif;
+      display: inline-block;
     }
     .btn:active { transform: translateY(2px); box-shadow: 0 2px 0 #46A302; }
     .btn:disabled { opacity: 0.5; pointer-events: none; }
     .spinner {
-      display: inline-block; width: 20px; height: 20px;
+      display: none; width: 20px; height: 20px;
       border: 3px solid rgba(255,255,255,0.3);
       border-top-color: white; border-radius: 50%;
       animation: spin 0.7s linear infinite;
-      margin-left: 8px; vertical-align: middle;
+      margin-right: 8px; vertical-align: middle;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
+    .settings-hint {
+      margin-top: 16px; font-size: 0.75rem; color: #8E8E93;
+      background: #F9F9F9; padding: 10px 14px; border-radius: 12px;
+      text-align: right; line-height: 1.6;
+    }
+    .settings-hint b { color: #1C1C1E; }
   </style>
   <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
 </head>
 <body>
   <div class="card">
     <h1>📲 تفعيل الإشعارات</h1>
-    <p>للحصول على تنبيهات الواجبات الجديدة، يرجى السماح بالإشعارات.</p>
+    <p>للحصول على تنبيهات الواجبات الجديدة والملاحظات، يرجى السماح بالإشعارات.</p>
     <button id="enable-btn" class="btn" disabled>
+      <span class="spinner" id="spinner"></span>
       <span id="btn-text">تفعيل الإشعارات</span>
-      <span class="spinner" style="display:none" id="spinner"></span>
     </button>
-    <p style="margin-top:16px; font-size:0.8rem; color:#8E8E93">
-      سيتم توجيهك إلى البوابة بعد التفعيل.
+    <p style="margin-top:12px; font-size:0.8rem; color:#8E8E93">
+      سيتم توجيهك مباشرة إلى البوابة بعد التفعيل.
     </p>
+    
+    <div class="settings-hint">
+      <b>⚙️ لتغيير الصوت أو الاهتزاز لاحقاً:</b><br>
+      إعدادات الهاتف ← التطبيقات ← Chrome ← الإشعارات ← المواقع ← هذا الموقع
+    </div>
   </div>
 
   <script>
-    // ---- Configuration ----
+    // ==================== CONFIGURATION ====================
     var APP_ID = "49858ccc-d3e8-427b-ab43-d7bb52273c1c";
-    var PORTAL_URL = "https://script.google.com/macros/s/AKfycbxoZNksqNVsTboElZpMpdEDBo07Z-qI7bw0r99HELSzr37xHp3eOvvPP_aZs5F3MIbx/exec?view=sp2";
+    var PORTAL_URL = "https://script.google.com/macros/s/AKfycbxoZNksqNVsTboElZpMpdEDBo07Z-qI7bw0r99HELSzr37xHp3eOvvPP_aZs5F3MIbx/exec?view=sp2"; // ← Replace with your actual GAS portal URL
+    // =======================================================
 
     var btn = document.getElementById('enable-btn');
     var btnText = document.getElementById('btn-text');
     var spinner = document.getElementById('spinner');
 
-    // Wait until OneSignal is fully ready (including the Notifications API)
-    function waitForOneSignalReady(callback) {
-      if (window.OneSignal && OneSignal.Notifications && OneSignal.Notifications.requestPermission) {
-        callback();
-      } else {
-        setTimeout(function() { waitForOneSignalReady(callback); }, 200);
+    // Wait for OneSignal to be fully ready
+    function waitForOneSignal(callback, timeout) {
+      timeout = timeout || 10000;
+      var start = Date.now();
+      function check() {
+        if (window.OneSignal && typeof OneSignal.init === 'function') {
+          callback();
+        } else if (Date.now() - start < timeout) {
+          setTimeout(check, 200);
+        } else {
+          alert('⚠️ تعذر تحميل خدمة الإشعارات. يرجى تحديث الصفحة أو استخدام متصفح Chrome.');
+          btnText.textContent = 'تعذر التحميل – حاول مجدداً';
+          btn.disabled = true;
+        }
       }
+      check();
     }
 
-    // Initialize OneSignal with absolute path and correct subdirectory scope
-    window.addEventListener('load', function() {
-      if (!window.OneSignalDeferred) { window.OneSignalDeferred = []; }
+    // Initialize OneSignal
+    function initOneSignal() {
+      window.OneSignalDeferred = window.OneSignalDeferred || [];
       OneSignalDeferred.push(async function(OneSignal) {
         await OneSignal.init({
           appId: APP_ID,
-          serviceWorkerPath: '/El-Rashid-Notifications/OneSignalSDKWorker.js',   // <-- absolute path from root
-          serviceWorkerParam: { scope: '/El-Rashid-Notifications/' },
           promptOptions: { autoPrompt: false }
         });
-        // Enable the button only when everything is ready
-        waitForOneSignalReady(function() {
-          btn.disabled = false;
-        });
+        btn.disabled = false;
       });
-    });
+    }
 
-    btn.addEventListener('click', function() {
+    // Show loading state
+    function showLoading() {
       btnText.style.display = 'none';
       spinner.style.display = 'inline-block';
       btn.disabled = true;
+    }
 
-      waitForOneSignalReady(function() {
-        OneSignal.Notifications.requestPermission().then(function(accepted) {
-          if (accepted) {
-            // Redirect to the portal after a short delay
-            setTimeout(function() { window.location.href = PORTAL_URL; }, 1000);
-          } else {
-            throw new Error('Permission denied');
-          }
+    // Hide loading state
+    function hideLoading() {
+      btnText.style.display = 'inline';
+      spinner.style.display = 'none';
+      btn.disabled = false;
+    }
+
+    // Redirect to portal with player ID
+    function redirectToPortal(playerId) {
+      var redirectUrl = PORTAL_URL;
+      if (playerId) {
+        redirectUrl += (redirectUrl.indexOf('?') === -1 ? '?' : '&') + 
+                       'onesignal_player=' + encodeURIComponent(playerId);
+      }
+      setTimeout(function() {
+        window.location.href = redirectUrl;
+      }, 1000);
+    }
+
+    // Handle the enable button click
+    btn.addEventListener('click', function() {
+      showLoading();
+
+      OneSignal.showNativePrompt().then(function() {
+        // Permission granted – get the player ID
+        OneSignal.getUserId().then(function(playerId) {
+          redirectToPortal(playerId);
         }).catch(function() {
-          alert('لم يتم تفعيل الإشعارات. يمكنك المحاولة لاحقاً من إعدادات المتصفح.');
-          btnText.style.display = 'inline';
-          spinner.style.display = 'none';
-          btn.disabled = false;
+          // Couldn't get player ID, redirect anyway
+          redirectToPortal(null);
         });
+      }).catch(function() {
+        // Permission denied or error
+        alert('لم يتم تفعيل الإشعارات. يمكنك المحاولة لاحقاً من إعدادات المتصفح.');
+        hideLoading();
       });
+    });
+
+    // Start everything
+    waitForOneSignal(function() {
+      initOneSignal();
     });
   </script>
 </body>
