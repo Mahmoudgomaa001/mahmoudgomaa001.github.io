@@ -35,6 +35,15 @@
       margin-left: 8px; vertical-align: middle;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
+    /* 🆕 Player ID display */
+    #player-id-display {
+      margin-top: 16px; padding: 12px; background: #F0FFF0;
+      border: 2px solid #58CC02; border-radius: 12px;
+      display: none; text-align: center;
+    }
+    #player-id-display .label { font-size: 0.75rem; color: #8E8E93; margin-bottom: 4px; }
+    #player-id-display .id { font-size: 0.7rem; font-weight: 700; color: #1C1C1E; word-break: break-all; direction: ltr; }
+    #player-id-display .copied { color: #58CC02; font-size: 0.7rem; margin-top: 4px; display: none; }
   </style>
   <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
 </head>
@@ -46,9 +55,15 @@
       <span id="btn-text">تفعيل الإشعارات</span>
       <span class="spinner" style="display:none" id="spinner"></span>
     </button>
-    <p style="margin-top:16px; font-size:0.8rem; color:#8E8E93">
+    <p style="margin-top:12px; font-size:0.8rem; color:#8E8E93">
       سيتم توجيهك إلى البوابة بعد التفعيل.
     </p>
+    <!-- 🆕 Player ID display box -->
+    <div id="player-id-display">
+      <div class="label">🆔 معرّف الاشتراك الخاص بك:</div>
+      <div class="id" id="player-id-text">---</div>
+      <div class="copied" id="copied-msg">✅ تم النسخ!</div>
+    </div>
   </div>
 
   <script>
@@ -59,8 +74,28 @@
     var btn = document.getElementById('enable-btn');
     var btnText = document.getElementById('btn-text');
     var spinner = document.getElementById('spinner');
+    var playerIdDisplay = document.getElementById('player-id-display');
+    var playerIdText = document.getElementById('player-id-text');
+    var copiedMsg = document.getElementById('copied-msg');
 
-    // Wait until OneSignal is fully ready (including the Notifications API)
+    // 🆕 Show Player ID on screen
+    function showPlayerId(playerId) {
+      if (playerId) {
+        playerIdText.textContent = playerId;
+        playerIdDisplay.style.display = 'block';
+        // Click to copy
+        playerIdText.style.cursor = 'pointer';
+        playerIdText.title = 'اضغط للنسخ';
+        playerIdText.onclick = function() {
+          navigator.clipboard.writeText(playerId).then(function() {
+            copiedMsg.style.display = 'block';
+            setTimeout(function() { copiedMsg.style.display = 'none'; }, 2000);
+          });
+        };
+      }
+    }
+
+    // Wait until OneSignal is fully ready
     function waitForOneSignalReady(callback) {
       if (window.OneSignal && OneSignal.Notifications && OneSignal.Notifications.requestPermission) {
         callback();
@@ -69,22 +104,17 @@
       }
     }
 
-    // 🆕 NEW: Get Player ID and redirect with it in URL
-    function redirectWithPlayerId() {
-      OneSignal.getUserId().then(function(playerId) {
-        var redirectUrl = PORTAL_URL;
-        if (playerId) {
-          redirectUrl += (redirectUrl.indexOf('?') === -1 ? '?' : '&') + 
-                         'onesignal_player=' + encodeURIComponent(playerId);
-        }
-        setTimeout(function() { window.location.href = redirectUrl; }, 1000);
-      }).catch(function() {
-        // If can't get Player ID, just redirect normally
-        setTimeout(function() { window.location.href = PORTAL_URL; }, 1000);
-      });
+    // 🆕 Redirect with Player ID in URL
+    function redirectWithPlayerId(playerId) {
+      var redirectUrl = PORTAL_URL;
+      if (playerId) {
+        redirectUrl += (redirectUrl.indexOf('?') === -1 ? '?' : '&') + 
+                       'onesignal_player=' + encodeURIComponent(playerId);
+      }
+      setTimeout(function() { window.location.href = redirectUrl; }, 1500);
     }
 
-    // Initialize OneSignal with absolute path and correct subdirectory scope
+    // Initialize OneSignal
     window.addEventListener('load', function() {
       if (!window.OneSignalDeferred) { window.OneSignalDeferred = []; }
       OneSignalDeferred.push(async function(OneSignal) {
@@ -94,7 +124,6 @@
           serviceWorkerParam: { scope: '/El-Rashid-Notifications/' },
           promptOptions: { autoPrompt: false }
         });
-        // Enable the button only when everything is ready
         waitForOneSignalReady(function() {
           btn.disabled = false;
         });
@@ -109,8 +138,17 @@
       waitForOneSignalReady(function() {
         OneSignal.Notifications.requestPermission().then(function(accepted) {
           if (accepted) {
-            // 🆕 CHANGED: Redirect with Player ID
-            redirectWithPlayerId();
+            // 🆕 Get Player ID and show it on screen
+            OneSignal.getUserId().then(function(playerId) {
+              console.log('🆔 Player ID:', playerId);
+              showPlayerId(playerId);
+              btnText.textContent = '✅ تم التفعيل! جاري التوجيه...';
+              btnText.style.display = 'inline';
+              spinner.style.display = 'none';
+              redirectWithPlayerId(playerId);
+            }).catch(function() {
+              redirectWithPlayerId(null);
+            });
           } else {
             throw new Error('Permission denied');
           }
