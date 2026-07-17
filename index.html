@@ -72,7 +72,7 @@
     .info-box label { display: block; font-size: 0.8rem; color: #8E8E93; margin-bottom: 4px; }
     .info-box .value {
       font-family: 'Courier New', monospace;
-      font-size: 0.85rem;
+      font-size: 0.8rem;
       word-break: break-all;
       color: #007AFF;
       font-weight: 600;
@@ -101,16 +101,13 @@
       border-radius: 12px;
       margin-top: 16px;
       font-family: 'Courier New', monospace;
-      font-size: 0.7rem;
+      font-size: 0.65rem;
       text-align: left;
       direction: ltr;
-      max-height: 150px;
+      max-height: 200px;
       overflow-y: auto;
       display: block;
     }
-    .debug-panel .warn { color: #FFC800; }
-    .debug-panel .err { color: #FF4B4B; }
-    .debug-panel .ok { color: #58CC02; }
   </style>
   <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
 </head>
@@ -125,7 +122,7 @@
     </button>
     
     <div class="debug-panel" id="debug-panel">
-      <span class="ok">🟢 Waiting...</span>
+      <span style="color:#58CC02;">🟢 Waiting...</span>
     </div>
     
     <p style="margin-top:16px; font-size:0.8rem; color:#8E8E93">
@@ -140,17 +137,11 @@
       <p>معرف الاشتراك الخاص بك:</p>
       
       <div class="info-box">
-        <label>🔑 Subscription ID:</label>
-        <div class="value" id="sub-id-display">-</div>
-      </div>
-      
-      <div class="info-box" id="url-preview-box" style="display:none;">
-        <label>🔗 سيتم التوجيه إلى:</label>
-        <div class="value" id="url-preview" style="font-size:0.65rem;"></div>
+        <label>🔑 معرف الجهاز:</label>
+        <div class="value" id="sub-id-display">جاري التحميل...</div>
       </div>
       
       <div class="modal-buttons">
-        <button class="btn-secondary" onclick="copyId()">📋 نسخ المعرف</button>
         <button class="btn-primary" onclick="goToPortal()">متابعة للبوابة ←</button>
       </div>
     </div>
@@ -167,12 +158,12 @@
     var debugPanel = document.getElementById('debug-panel');
     var currentPlayerId = null;
 
-    function debugLog(msg, type) {
-      type = type || 'ok';
-      var color = type === 'err' ? 'err' : type === 'warn' ? 'warn' : 'ok';
-      debugPanel.innerHTML += '\n<span class="' + color + '">> ' + msg + '</span>';
-      debugPanel.scrollTop = debugPanel.scrollHeight;
+    function debugLog(msg) {
       console.log(msg);
+      var line = document.createElement('div');
+      line.textContent = '> ' + msg;
+      debugPanel.appendChild(line);
+      debugPanel.scrollTop = debugPanel.scrollHeight;
     }
 
     window.addEventListener('load', function() {
@@ -182,86 +173,106 @@
         debugLog('SDK ready');
         await OneSignal.init({
           appId: APP_ID,
-          serviceWorkerPath: '/El-Rashid-Notifications/OneSignalSDKWorker.js',
-          serviceWorkerParam: { scope: '/El-Rashid-Notifications/' },
+          serviceWorkerPath: 'OneSignalSDKWorker.js',
+          serviceWorkerParam: { scope: '/' },
           promptOptions: { autoPrompt: false }
         });
-        debugLog('Initialized');
+        debugLog('Init done');
         btn.disabled = false;
-        debugLog('Button enabled');
       });
     });
 
-    async function getSubscriptionId() {
-      debugLog('Getting subscription ID...');
+    // TRY MULTIPLE METHODS to get the ID
+    async function tryGetPlayerId() {
+      debugLog('=== TRYING TO GET PLAYER ID ===');
+      
+      // Method 1: getIdAsync
       try {
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        var id = null;
-        if (OneSignal.User.pushSubscription && OneSignal.User.pushSubscription.getIdAsync) {
-          id = await OneSignal.User.pushSubscription.getIdAsync();
+        debugLog('Method 1: getIdAsync()');
+        var id1 = await OneSignal.User.pushSubscription.getIdAsync();
+        if (id1) {
+          debugLog('✅ Method 1 SUCCESS: ' + id1);
+          return id1;
         }
-        if (!id && OneSignal.User.pushSubscription && OneSignal.User.pushSubscription.id) {
-          id = OneSignal.User.pushSubscription.id;
-        }
-        if (id) {
-          debugLog('Got ID: ' + id.substring(0, 20) + '...');
-        } else {
-          debugLog('NO ID FOUND!', 'err');
-        }
-        return id;
+        debugLog('Method 1 returned: ' + id1);
       } catch(e) {
-        debugLog('Error: ' + e.message, 'err');
-        return null;
+        debugLog('Method 1 error: ' + e.message);
       }
+      
+      // Method 2: Direct property
+      try {
+        debugLog('Method 2: .id property');
+        var id2 = OneSignal.User.pushSubscription.id;
+        if (id2) {
+          debugLog('✅ Method 2 SUCCESS: ' + id2);
+          return id2;
+        }
+        debugLog('Method 2 returned: ' + id2);
+      } catch(e) {
+        debugLog('Method 2 error: ' + e.message);
+      }
+      
+      // Method 3: Get token
+      try {
+        debugLog('Method 3: getTokenAsync()');
+        var token = await OneSignal.User.pushSubscription.getTokenAsync();
+        if (token) {
+          debugLog('✅ Method 3 SUCCESS (token): ' + token);
+          return token;
+        }
+        debugLog('Method 3 returned: ' + token);
+      } catch(e) {
+        debugLog('Method 3 error: ' + e.message);
+      }
+      
+      // Method 4: OneSignal User ID
+      try {
+        debugLog('Method 4: onesignalId');
+        var id4 = OneSignal.User.onesignalId;
+        if (id4) {
+          debugLog('✅ Method 4 SUCCESS: ' + id4);
+          return id4;
+        }
+        debugLog('Method 4 returned: ' + id4);
+      } catch(e) {
+        debugLog('Method 4 error: ' + e.message);
+      }
+      
+      // Method 5: Check subscription object directly
+      try {
+        debugLog('Method 5: subscription object');
+        var sub = OneSignal.User.pushSubscription;
+        debugLog('Subscription object keys: ' + Object.keys(sub).join(', '));
+        if (sub && sub.id) {
+          debugLog('✅ Method 5 SUCCESS: ' + sub.id);
+          return sub.id;
+        }
+      } catch(e) {
+        debugLog('Method 5 error: ' + e.message);
+      }
+      
+      debugLog('❌ ALL METHODS FAILED');
+      return null;
     }
 
     function showModal(playerId) {
       currentPlayerId = playerId;
-      
-      if (playerId) {
-        document.getElementById('sub-id-display').textContent = playerId;
-        
-        var finalUrl = PORTAL_URL + '&onesignal_player=' + encodeURIComponent(playerId);
-        document.getElementById('url-preview-box').style.display = 'block';
-        document.getElementById('url-preview').textContent = finalUrl;
-        
-        debugLog('Player ID: ' + playerId);
-        debugLog('Will redirect to portal with ID');
-      } else {
-        document.getElementById('sub-id-display').textContent = 'لم يتم العثور على معرف';
-        debugLog('No ID to send', 'warn');
-      }
-      
+      document.getElementById('sub-id-display').textContent = playerId || 'لم يتم العثور على معرف';
       modalOverlay.classList.add('active');
     }
 
-    window.copyId = function() {
-      if (!currentPlayerId) {
-        alert('لا يوجد معرف لنسخه');
-        return;
-      }
-      navigator.clipboard.writeText(currentPlayerId).then(function() {
-        alert('✅ تم نسخ المعرف!');
-        debugLog('ID copied');
-      }).catch(function() {
-        var ta = document.createElement('textarea');
-        ta.value = currentPlayerId;
-        document.body.appendChild(ta);
-        ta.select();
-        document.execCommand('copy');
-        document.body.removeChild(ta);
-        alert('✅ تم نسخ المعرف!');
-      });
-    };
-
     window.goToPortal = function() {
+      debugLog('=== GOING TO PORTAL ===');
+      debugLog('Player ID: ' + (currentPlayerId || 'NONE'));
+      
       if (currentPlayerId) {
         localStorage.setItem('sp_onesignal_playerid', currentPlayerId);
+        debugLog('Saved to localStorage');
         var url = PORTAL_URL + '&onesignal_player=' + encodeURIComponent(currentPlayerId);
-        debugLog('Going to: ' + url);
+        debugLog('URL: ' + url);
         window.location.href = url;
       } else {
-        debugLog('Going to portal without ID', 'warn');
+        debugLog('No ID - going without');
         window.location.href = PORTAL_URL;
       }
     };
@@ -270,22 +281,49 @@
       btnText.style.display = 'none';
       spinner.style.display = 'inline-block';
       btn.disabled = true;
-      debugLog('Button clicked');
+      debugLog('=== BUTTON CLICKED ===');
 
       try {
         debugLog('Requesting permission...');
         var accepted = await OneSignal.Notifications.requestPermission();
+        debugLog('Permission response: ' + accepted);
         
         if (accepted) {
-          debugLog('Permission GRANTED!');
-          var playerId = await getSubscriptionId();
-          showModal(playerId);
+          debugLog('✅ Permission GRANTED!');
+          debugLog('Waiting 3 seconds for subscription to register...');
+          
+          // Show modal immediately with loading state
+          showModal('جاري التحميل...');
+          
+          // Wait and try multiple times
+          var playerId = null;
+          for (var i = 0; i < 5; i++) {
+            debugLog('Attempt ' + (i+1) + '...');
+            await new Promise(resolve => setTimeout(resolve, 1500));
+            playerId = await tryGetPlayerId();
+            if (playerId) break;
+          }
+          
+          // Update modal with result
+          document.getElementById('sub-id-display').textContent = playerId || 'لم يتم العثور على معرف';
+          currentPlayerId = playerId;
+          
+          if (playerId) {
+            debugLog('✅ FINAL ID: ' + playerId);
+          } else {
+            debugLog('❌ NO ID AFTER 5 ATTEMPTS');
+            // Last resort: generate a temporary ID
+            var tempId = 'temp_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+            debugLog('Generated temp ID: ' + tempId);
+            currentPlayerId = tempId;
+            document.getElementById('sub-id-display').textContent = tempId + ' (مؤقت)';
+          }
         } else {
-          debugLog('Permission denied', 'err');
+          debugLog('❌ Permission DENIED');
           alert('لم يتم تفعيل الإشعارات');
         }
       } catch(e) {
-        debugLog('Error: ' + e.message, 'err');
+        debugLog('ERROR: ' + e.message);
         alert('خطأ: ' + e.message);
       } finally {
         btnText.style.display = 'inline';
