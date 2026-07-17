@@ -1,336 +1,410 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ar" dir="rtl">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>تفعيل الإشعارات - بوابة الرشيد</title>
-  <style>
-    body {
-      font-family: 'Cairo', sans-serif;
-      background: #F2F2F7;
-      display: flex; justify-content: center; align-items: center;
-      height: 100vh; margin: 0; direction: rtl;
-    }
-    .card {
-      background: white; border-radius: 24px; padding: 32px 24px;
-      box-shadow: 0 8px 30px rgba(0,0,0,0.12); text-align: center;
-      max-width: 400px; width: 90%;
-    }
-    .card h1 { font-size: 1.8rem; margin-bottom: 12px; color: #1C1C1E; }
-    .card p { color: #8E8E93; margin-bottom: 24px; }
-    .btn {
-      background: #58CC02; color: white; border: none;
-      padding: 14px 32px; font-size: 1.1rem; font-weight: 700;
-      border-radius: 50px; cursor: pointer;
-      box-shadow: 0 4px 0 #46A302, 0 6px 20px rgba(88,204,2,0.3);
-      transition: all 0.2s; font-family: 'Cairo', sans-serif;
-    }
-    .btn:active { transform: translateY(2px); box-shadow: 0 2px 0 #46A302; }
-    .btn:disabled { opacity: 0.5; pointer-events: none; }
-    .spinner {
-      display: inline-block; width: 20px; height: 20px;
-      border: 3px solid rgba(255,255,255,0.3);
-      border-top-color: white; border-radius: 50%;
-      animation: spin 0.7s linear infinite;
-      margin-left: 8px; vertical-align: middle;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    
-    .modal-overlay {
-      display: none;
-      position: fixed;
-      top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(0,0,0,0.5);
-      z-index: 1000;
-      justify-content: center; align-items: center;
-    }
-    .modal-overlay.active { display: flex; }
-    .modal {
-      background: white;
-      border-radius: 20px;
-      padding: 32px 24px;
-      max-width: 380px;
-      width: 90%;
-      text-align: center;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-      animation: modalSlideIn 0.3s ease-out;
-    }
-    @keyframes modalSlideIn {
-      from { transform: translateY(20px); opacity: 0; }
-      to { transform: translateY(0); opacity: 1; }
-    }
-    .modal-icon { font-size: 3rem; margin-bottom: 16px; }
-    .modal h2 { margin: 0 0 8px 0; color: #1C1C1E; font-size: 1.4rem; }
-    .modal p { color: #8E8E93; margin-bottom: 20px; font-size: 0.9rem; }
-    .info-box {
-      background: #F2F2F7;
-      border-radius: 12px;
-      padding: 16px;
-      margin-bottom: 12px;
-      text-align: right;
-    }
-    .info-box label { display: block; font-size: 0.8rem; color: #8E8E93; margin-bottom: 4px; }
-    .info-box .value {
-      font-family: 'Courier New', monospace;
-      font-size: 0.8rem;
-      word-break: break-all;
-      color: #007AFF;
-      font-weight: 600;
-    }
-    .modal-buttons { display: flex; gap: 12px; justify-content: center; margin-top: 20px; }
-    .btn-primary {
-      background: #58CC02; color: white; border: none;
-      padding: 12px 28px; font-size: 1rem; font-weight: 700;
-      border-radius: 50px; cursor: pointer;
-      font-family: 'Cairo', sans-serif;
-      box-shadow: 0 4px 0 #46A302; flex: 1;
-    }
-    .btn-primary:active { transform: translateY(2px); box-shadow: 0 2px 0 #46A302; }
-    .btn-secondary {
-      background: #F2F2F7; color: #1C1C1E; border: none;
-      padding: 12px 28px; font-size: 1rem; font-weight: 600;
-      border-radius: 50px; cursor: pointer;
-      font-family: 'Cairo', sans-serif; flex: 1;
-    }
-    .btn-secondary:hover { background: #E5E5EA; }
-    
-    .debug-panel {
-      background: #1C1C1E;
-      color: #58CC02;
-      padding: 12px;
-      border-radius: 12px;
-      margin-top: 16px;
-      font-family: 'Courier New', monospace;
-      font-size: 0.65rem;
-      text-align: left;
-      direction: ltr;
-      max-height: 200px;
-      overflow-y: auto;
-      display: block;
-    }
-  </style>
-  <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
-</head>
-<body>
-  <div class="card">
-    <h1>📲 تفعيل الإشعارات</h1>
-    <p>للحصول على تنبيهات الواجبات الجديدة، يرجى السماح بالإشعارات.</p>
-    
-    <button id="enable-btn" class="btn" disabled>
-      <span id="btn-text">تفعيل الإشعارات</span>
-      <span class="spinner" style="display:none" id="spinner"></span>
-    </button>
-    
-    <div class="debug-panel" id="debug-panel">
-      <span style="color:#58CC02;">🟢 Waiting...</span>
-    </div>
-    
-    <p style="margin-top:16px; font-size:0.8rem; color:#8E8E93">
-      سيتم توجيهك إلى البوابة بعد التفعيل.
-    </p>
-  </div>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>تفعيل الإشعارات - بوابة الرشيد</title>
+    <style>
+      body {
+        font-family: "Cairo", sans-serif;
+        background: #f2f2f7;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        margin: 0;
+        direction: rtl;
+      }
+      .card {
+        background: white;
+        border-radius: 24px;
+        padding: 32px 24px;
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+        text-align: center;
+        max-width: 400px;
+        width: 90%;
+      }
+      .card h1 {
+        font-size: 1.8rem;
+        margin-bottom: 12px;
+        color: #1c1c1e;
+      }
+      .card p {
+        color: #8e8e93;
+        margin-bottom: 24px;
+      }
+      .btn {
+        background: #58cc02;
+        color: white;
+        border: none;
+        padding: 14px 32px;
+        font-size: 1.1rem;
+        font-weight: 700;
+        border-radius: 50px;
+        cursor: pointer;
+        box-shadow:
+          0 4px 0 #46a302,
+          0 6px 20px rgba(88, 204, 2, 0.3);
+        transition: all 0.2s;
+        font-family: "Cairo", sans-serif;
+      }
+      .btn:active {
+        transform: translateY(2px);
+        box-shadow: 0 2px 0 #46a302;
+      }
+      .btn:disabled {
+        opacity: 0.5;
+        pointer-events: none;
+      }
+      .spinner {
+        display: inline-block;
+        width: 20px;
+        height: 20px;
+        border: 3px solid rgba(255, 255, 255, 0.3);
+        border-top-color: white;
+        border-radius: 50%;
+        animation: spin 0.7s linear infinite;
+        margin-left: 8px;
+        vertical-align: middle;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
 
-  <div class="modal-overlay" id="modal-overlay">
-    <div class="modal">
-      <div class="modal-icon">✅</div>
-      <h2>تم تفعيل الإشعارات بنجاح!</h2>
-      <p>معرف الاشتراك الخاص بك:</p>
-      
-      <div class="info-box">
-        <label>🔑 معرف الجهاز:</label>
-        <div class="value" id="sub-id-display">جاري التحميل...</div>
+      .modal-overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 1000;
+        justify-content: center;
+        align-items: center;
+      }
+      .modal-overlay.active {
+        display: flex;
+      }
+      .modal {
+        background: white;
+        border-radius: 20px;
+        padding: 32px 24px;
+        max-width: 380px;
+        width: 90%;
+        text-align: center;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        animation: modalSlideIn 0.3s ease-out;
+      }
+      @keyframes modalSlideIn {
+        from {
+          transform: translateY(20px);
+          opacity: 0;
+        }
+        to {
+          transform: translateY(0);
+          opacity: 1;
+        }
+      }
+      .modal-icon {
+        font-size: 3rem;
+        margin-bottom: 16px;
+      }
+      .modal h2 {
+        margin: 0 0 8px 0;
+        color: #1c1c1e;
+        font-size: 1.4rem;
+      }
+      .modal p {
+        color: #8e8e93;
+        margin-bottom: 20px;
+        font-size: 0.9rem;
+      }
+      .info-box {
+        background: #f2f2f7;
+        border-radius: 12px;
+        padding: 16px;
+        margin-bottom: 12px;
+        text-align: right;
+      }
+      .info-box label {
+        display: block;
+        font-size: 0.8rem;
+        color: #8e8e93;
+        margin-bottom: 4px;
+      }
+      .info-box .value {
+        font-family: "Courier New", monospace;
+        font-size: 0.8rem;
+        word-break: break-all;
+        color: #007aff;
+        font-weight: 600;
+      }
+      .modal-buttons {
+        display: flex;
+        gap: 12px;
+        justify-content: center;
+        margin-top: 20px;
+      }
+      .btn-primary {
+        background: #58cc02;
+        color: white;
+        border: none;
+        padding: 12px 28px;
+        font-size: 1rem;
+        font-weight: 700;
+        border-radius: 50px;
+        cursor: pointer;
+        font-family: "Cairo", sans-serif;
+        box-shadow: 0 4px 0 #46a302;
+        flex: 1;
+      }
+      .btn-primary:active {
+        transform: translateY(2px);
+        box-shadow: 0 2px 0 #46a302;
+      }
+      .btn-secondary {
+        background: #f2f2f7;
+        color: #1c1c1e;
+        border: none;
+        padding: 12px 28px;
+        font-size: 1rem;
+        font-weight: 600;
+        border-radius: 50px;
+        cursor: pointer;
+        font-family: "Cairo", sans-serif;
+        flex: 1;
+      }
+      .btn-secondary:hover {
+        background: #e5e5ea;
+      }
+
+      .debug-panel {
+        background: #1c1c1e;
+        color: #58cc02;
+        padding: 12px;
+        border-radius: 12px;
+        margin-top: 16px;
+        font-family: "Courier New", monospace;
+        font-size: 0.65rem;
+        text-align: left;
+        direction: ltr;
+        max-height: 200px;
+        overflow-y: auto;
+        display: block;
+      }
+    </style>
+    <script
+      src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js"
+      defer
+    ></script>
+  </head>
+  <body>
+    <div class="card">
+      <h1>📲 تفعيل الإشعارات</h1>
+      <p>للحصول على تنبيهات الواجبات الجديدة، يرجى السماح بالإشعارات.</p>
+
+      <button id="enable-btn" class="btn" disabled>
+        <span id="btn-text">تفعيل الإشعارات</span>
+        <span class="spinner" style="display: none" id="spinner"></span>
+      </button>
+
+      <div class="debug-panel" id="debug-panel">
+        <span style="color: #58cc02">🟢 Waiting...</span>
       </div>
-      
-      <div class="modal-buttons">
-        <button class="btn-primary" onclick="goToPortal()">متابعة للبوابة ←</button>
+
+      <p style="margin-top: 16px; font-size: 0.8rem; color: #8e8e93">
+        سيتم توجيهك إلى البوابة بعد التفعيل.
+      </p>
+    </div>
+
+    <div class="modal-overlay" id="modal-overlay">
+      <div class="modal">
+        <div class="modal-icon">✅</div>
+        <h2>تم تفعيل الإشعارات بنجاح!</h2>
+        <p>معرف الاشتراك الخاص بك:</p>
+
+        <div class="info-box">
+          <label>🔑 معرف الجهاز (Subscription ID):</label>
+          <div class="value" id="sub-id-display">جاري التحميل...</div>
+        </div>
+
+        <div class="modal-buttons">
+          <button class="btn-primary" onclick="goToPortal()">
+            متابعة للبوابة ←
+          </button>
+        </div>
       </div>
     </div>
-  </div>
 
-  <script>
-    var APP_ID = "49858ccc-d3e8-427b-ab43-d7bb52273c1c";
-    var PORTAL_URL = "https://script.google.com/macros/s/AKfycbxoZNksqNVsTboElZpMpdEDBo07Z-qI7bw0r99HELSzr37xHp3eOvvPP_aZs5F3MIbx/exec?view=sp2";
+    <script>
+      var APP_ID = "49858ccc-d3e8-427b-ab43-d7bb52273c1c";
+      var PORTAL_URL =
+        "https://script.google.com/macros/s/AKfycbxoZNksqNVsTboElZpMpdEDBo07Z-qI7bw0r99HELSzr37xHp3eOvvPP_aZs5F3MIbx/exec?view=sp2";
 
-    var btn = document.getElementById('enable-btn');
-    var btnText = document.getElementById('btn-text');
-    var spinner = document.getElementById('spinner');
-    var modalOverlay = document.getElementById('modal-overlay');
-    var debugPanel = document.getElementById('debug-panel');
-    var currentPlayerId = null;
+      var btn = document.getElementById("enable-btn");
+      var btnText = document.getElementById("btn-text");
+      var spinner = document.getElementById("spinner");
+      var modalOverlay = document.getElementById("modal-overlay");
+      var debugPanel = document.getElementById("debug-panel");
+      var currentSubscriptionId = null; // <-- this will hold the correct player ID
+      var subscriptionChangeResolved = false;
 
-    function debugLog(msg) {
-      console.log(msg);
-      var line = document.createElement('div');
-      line.textContent = '> ' + msg;
-      debugPanel.appendChild(line);
-      debugPanel.scrollTop = debugPanel.scrollHeight;
-    }
+      function debugLog(msg) {
+        console.log(msg);
+        var line = document.createElement("div");
+        line.textContent = "> " + msg;
+        debugPanel.appendChild(line);
+        debugPanel.scrollTop = debugPanel.scrollHeight;
+      }
 
-    window.addEventListener('load', function() {
-      debugLog('Page loaded');
-      if (!window.OneSignalDeferred) { window.OneSignalDeferred = []; }
-      OneSignalDeferred.push(async function(OneSignal) {
-        debugLog('SDK ready');
-        await OneSignal.init({
-          appId: APP_ID,
-          serviceWorkerPath: 'OneSignalSDKWorker.js',
-          serviceWorkerParam: { scope: '/' },
-          promptOptions: { autoPrompt: false }
+      // ─── OneSignal Init ───
+      window.addEventListener("load", function () {
+        debugLog("Page loaded");
+        if (!window.OneSignalDeferred) {
+          window.OneSignalDeferred = [];
+        }
+        OneSignalDeferred.push(async function (OneSignal) {
+          debugLog("SDK ready");
+          await OneSignal.init({
+            appId: APP_ID,
+            serviceWorkerPath: "OneSignalSDKWorker.js",
+            serviceWorkerParam: { scope: "/" },
+            promptOptions: { autoPrompt: false },
+          });
+          debugLog("Init done");
+          btn.disabled = false;
+
+          // ── Listen for push subscription changes ──
+          OneSignal.User.pushSubscription.addEventListener(
+            "change",
+            function (subscription) {
+              debugLog("📱 Push subscription changed");
+              var newId =
+                subscription.current && subscription.current.id
+                  ? subscription.current.id
+                  : null;
+              if (newId) {
+                debugLog("✅ New Subscription ID (from listener): " + newId);
+                currentSubscriptionId = newId; // update immediately
+                subscriptionChangeResolved = true;
+              }
+            },
+          );
         });
-        debugLog('Init done');
-        btn.disabled = false;
       });
-    });
 
-    // TRY MULTIPLE METHODS to get the ID
-    async function tryGetPlayerId() {
-      debugLog('=== TRYING TO GET PLAYER ID ===');
-      
-      // Method 1: getIdAsync
-      try {
-        debugLog('Method 1: getIdAsync()');
-        var id1 = await OneSignal.User.pushSubscription.getIdAsync();
-        if (id1) {
-          debugLog('✅ Method 1 SUCCESS: ' + id1);
-          return id1;
-        }
-        debugLog('Method 1 returned: ' + id1);
-      } catch(e) {
-        debugLog('Method 1 error: ' + e.message);
-      }
-      
-      // Method 2: Direct property
-      try {
-        debugLog('Method 2: .id property');
-        var id2 = OneSignal.User.pushSubscription.id;
-        if (id2) {
-          debugLog('✅ Method 2 SUCCESS: ' + id2);
-          return id2;
-        }
-        debugLog('Method 2 returned: ' + id2);
-      } catch(e) {
-        debugLog('Method 2 error: ' + e.message);
-      }
-      
-      // Method 3: Get token
-      try {
-        debugLog('Method 3: getTokenAsync()');
-        var token = await OneSignal.User.pushSubscription.getTokenAsync();
-        if (token) {
-          debugLog('✅ Method 3 SUCCESS (token): ' + token);
-          return token;
-        }
-        debugLog('Method 3 returned: ' + token);
-      } catch(e) {
-        debugLog('Method 3 error: ' + e.message);
-      }
-      
-      // Method 4: OneSignal User ID
-      try {
-        debugLog('Method 4: onesignalId');
-        var id4 = OneSignal.User.onesignalId;
-        if (id4) {
-          debugLog('✅ Method 4 SUCCESS: ' + id4);
-          return id4;
-        }
-        debugLog('Method 4 returned: ' + id4);
-      } catch(e) {
-        debugLog('Method 4 error: ' + e.message);
-      }
-      
-      // Method 5: Check subscription object directly
-      try {
-        debugLog('Method 5: subscription object');
-        var sub = OneSignal.User.pushSubscription;
-        debugLog('Subscription object keys: ' + Object.keys(sub).join(', '));
-        if (sub && sub.id) {
-          debugLog('✅ Method 5 SUCCESS: ' + sub.id);
-          return sub.id;
-        }
-      } catch(e) {
-        debugLog('Method 5 error: ' + e.message);
-      }
-      
-      debugLog('❌ ALL METHODS FAILED');
-      return null;
-    }
+      // Get the subscription ID – only tries the correct methods, no onesignalId
+      async function getSubscriptionId() {
+        debugLog("=== Getting Subscription ID ===");
 
-    function showModal(playerId) {
-      currentPlayerId = playerId;
-      document.getElementById('sub-id-display').textContent = playerId || 'لم يتم العثور على معرف';
-      modalOverlay.classList.add('active');
-    }
+        // If already captured by the listener, use it
+        if (subscriptionChangeResolved && currentSubscriptionId) {
+          debugLog("Listener already captured: " + currentSubscriptionId);
+          return currentSubscriptionId;
+        }
 
-    window.goToPortal = function() {
-      debugLog('=== GOING TO PORTAL ===');
-      debugLog('Player ID: ' + (currentPlayerId || 'NONE'));
-      
-      if (currentPlayerId) {
-        localStorage.setItem('sp_onesignal_playerid', currentPlayerId);
-        debugLog('Saved to localStorage');
-        var url = PORTAL_URL + '&onesignal_player=' + encodeURIComponent(currentPlayerId);
-        debugLog('URL: ' + url);
-        window.location.href = url;
-      } else {
-        debugLog('No ID - going without');
-        window.location.href = PORTAL_URL;
-      }
-    };
-
-    btn.addEventListener('click', async function() {
-      btnText.style.display = 'none';
-      spinner.style.display = 'inline-block';
-      btn.disabled = true;
-      debugLog('=== BUTTON CLICKED ===');
-
-      try {
-        debugLog('Requesting permission...');
-        var accepted = await OneSignal.Notifications.requestPermission();
-        debugLog('Permission response: ' + accepted);
-        
-        if (accepted) {
-          debugLog('✅ Permission GRANTED!');
-          debugLog('Waiting 3 seconds for subscription to register...');
-          
-          // Show modal immediately with loading state
-          showModal('جاري التحميل...');
-          
-          // Wait and try multiple times
-          var playerId = null;
-          for (var i = 0; i < 5; i++) {
-            debugLog('Attempt ' + (i+1) + '...');
-            await new Promise(resolve => setTimeout(resolve, 1500));
-            playerId = await tryGetPlayerId();
-            if (playerId) break;
+        // Method 1: getIdAsync()
+        try {
+          var id1 = await OneSignal.User.pushSubscription.getIdAsync();
+          if (id1) {
+            debugLog("✅ getIdAsync: " + id1);
+            return id1;
           }
-          
-          // Update modal with result
-          document.getElementById('sub-id-display').textContent = playerId || 'لم يتم العثور على معرف';
-          currentPlayerId = playerId;
-          
-          if (playerId) {
-            debugLog('✅ FINAL ID: ' + playerId);
-          } else {
-            debugLog('❌ NO ID AFTER 5 ATTEMPTS');
-            // Last resort: generate a temporary ID
-            var tempId = 'temp_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-            debugLog('Generated temp ID: ' + tempId);
-            currentPlayerId = tempId;
-            document.getElementById('sub-id-display').textContent = tempId + ' (مؤقت)';
+          debugLog("getIdAsync returned empty");
+        } catch (e) {
+          debugLog("getIdAsync error: " + e.message);
+        }
+
+        // Method 2: .id property
+        try {
+          var id2 = OneSignal.User.pushSubscription.id;
+          if (id2) {
+            debugLog("✅ .id property: " + id2);
+            return id2;
           }
+          debugLog(".id property empty");
+        } catch (e) {
+          debugLog(".id error: " + e.message);
+        }
+
+        // Method 3: direct object inspection (just in case)
+        try {
+          var sub = OneSignal.User.pushSubscription;
+          if (sub && sub.id) {
+            debugLog("✅ subscription object id: " + sub.id);
+            return sub.id;
+          }
+        } catch (e) {}
+
+        debugLog("❌ No subscription ID found");
+        return null;
+      }
+
+      function showModal(subId) {
+        currentSubscriptionId = subId;
+        document.getElementById("sub-id-display").textContent =
+          subId || "لم يتم العثور على معرف";
+        modalOverlay.classList.add("active");
+      }
+
+      window.goToPortal = function () {
+        debugLog("=== GOING TO PORTAL ===");
+        debugLog("Subscription ID: " + (currentSubscriptionId || "NONE"));
+
+        if (currentSubscriptionId) {
+          localStorage.setItem("sp_onesignal_playerid", currentSubscriptionId);
+          var url =
+            PORTAL_URL +
+            "&onesignal_player=" +
+            encodeURIComponent(currentSubscriptionId);
+          debugLog("Redirect URL: " + url);
+          window.location.href = url;
         } else {
-          debugLog('❌ Permission DENIED');
-          alert('لم يتم تفعيل الإشعارات');
+          debugLog("No ID – going without");
+          window.location.href = PORTAL_URL;
         }
-      } catch(e) {
-        debugLog('ERROR: ' + e.message);
-        alert('خطأ: ' + e.message);
-      } finally {
-        btnText.style.display = 'inline';
-        spinner.style.display = 'none';
-        btn.disabled = false;
-      }
-    });
-  </script>
-</body>
+      };
+
+      btn.addEventListener("click", async function () {
+        btnText.style.display = "none";
+        spinner.style.display = "inline-block";
+        btn.disabled = true;
+        debugLog("=== BUTTON CLICKED ===");
+
+        try {
+          var accepted = await OneSignal.Notifications.requestPermission();
+          debugLog("Permission: " + accepted);
+
+          if (accepted) {
+            debugLog("✅ Permission granted – waiting for subscription...");
+            showModal("جاري التحميل..."); // loading state
+
+            var id = null;
+            // Retry a few times (listener may fire quickly)
+            for (var i = 0; i < 6; i++) {
+              await new Promise((r) => setTimeout(r, 1500));
+              id = await getSubscriptionId();
+              if (id) break;
+            }
+
+            document.getElementById("sub-id-display").textContent =
+              id || "لم يتم العثور على معرف";
+            currentSubscriptionId = id;
+            debugLog(id ? "✅ Final ID: " + id : "❌ Failed to get ID");
+          } else {
+            alert("لم يتم تفعيل الإشعارات");
+          }
+        } catch (e) {
+          debugLog("Error: " + e.message);
+        } finally {
+          btnText.style.display = "inline";
+          spinner.style.display = "none";
+          btn.disabled = false;
+        }
+      });
+    </script>
+  </body>
 </html>
