@@ -227,7 +227,7 @@
         <p>معرف الاشتراك الخاص بك:</p>
 
         <div class="info-box">
-          <label>🔑 معرف الجهاز (Subscription ID):</label>
+          <label>🔑 Subscription ID (معرف الجهاز):</label>
           <div class="value" id="sub-id-display">جاري التحميل...</div>
         </div>
 
@@ -249,8 +249,8 @@
       var spinner = document.getElementById("spinner");
       var modalOverlay = document.getElementById("modal-overlay");
       var debugPanel = document.getElementById("debug-panel");
-      var currentSubscriptionId = null; // <-- this will hold the correct player ID
-      var subscriptionChangeResolved = false;
+      var currentSubscriptionId = null; // <-- will store the correct Subscription ID
+      var subscriptionChangeResolved = false; // <-- set by listener
 
       function debugLog(msg) {
         console.log(msg);
@@ -260,7 +260,7 @@
         debugPanel.scrollTop = debugPanel.scrollHeight;
       }
 
-      // ─── OneSignal Init ───
+      // ─── OneSignal Init + subscription listener ───
       window.addEventListener("load", function () {
         debugLog("Page loaded");
         if (!window.OneSignalDeferred) {
@@ -277,7 +277,7 @@
           debugLog("Init done");
           btn.disabled = false;
 
-          // ── Listen for push subscription changes ──
+          // ⚡ Listen for push subscription changes – this fires when the subscription is created/updated
           OneSignal.User.pushSubscription.addEventListener(
             "change",
             function (subscription) {
@@ -287,8 +287,8 @@
                   ? subscription.current.id
                   : null;
               if (newId) {
-                debugLog("✅ New Subscription ID (from listener): " + newId);
-                currentSubscriptionId = newId; // update immediately
+                debugLog("✅ Subscription ID (from listener): " + newId);
+                currentSubscriptionId = newId;
                 subscriptionChangeResolved = true;
               }
             },
@@ -296,11 +296,11 @@
         });
       });
 
-      // Get the subscription ID – only tries the correct methods, no onesignalId
+      // ─── Get the Subscription ID (only correct methods, NO onesignalId) ───
       async function getSubscriptionId() {
         debugLog("=== Getting Subscription ID ===");
 
-        // If already captured by the listener, use it
+        // If the listener already captured it, use that
         if (subscriptionChangeResolved && currentSubscriptionId) {
           debugLog("Listener already captured: " + currentSubscriptionId);
           return currentSubscriptionId;
@@ -330,7 +330,7 @@
           debugLog(".id error: " + e.message);
         }
 
-        // Method 3: direct object inspection (just in case)
+        // Method 3: direct subscription object (fallback)
         try {
           var sub = OneSignal.User.pushSubscription;
           if (sub && sub.id) {
@@ -339,7 +339,7 @@
           }
         } catch (e) {}
 
-        debugLog("❌ No subscription ID found");
+        debugLog("❌ No Subscription ID found");
         return null;
       }
 
@@ -383,7 +383,7 @@
             showModal("جاري التحميل..."); // loading state
 
             var id = null;
-            // Retry a few times (listener may fire quickly)
+            // Retry up to 6 times (the listener may capture it early)
             for (var i = 0; i < 6; i++) {
               await new Promise((r) => setTimeout(r, 1500));
               id = await getSubscriptionId();
@@ -393,7 +393,9 @@
             document.getElementById("sub-id-display").textContent =
               id || "لم يتم العثور على معرف";
             currentSubscriptionId = id;
-            debugLog(id ? "✅ Final ID: " + id : "❌ Failed to get ID");
+            debugLog(
+              id ? "✅ Final Subscription ID: " + id : "❌ Failed to get ID",
+            );
           } else {
             alert("لم يتم تفعيل الإشعارات");
           }
