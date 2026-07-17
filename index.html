@@ -191,7 +191,7 @@
         font-size: 0.65rem;
         text-align: left;
         direction: ltr;
-        max-height: 200px;
+        max-height: 250px;
         overflow-y: auto;
         display: block;
       }
@@ -227,7 +227,7 @@
         <p>معرف الاشتراك الخاص بك:</p>
 
         <div class="info-box">
-          <label>🔑 Subscription ID (معرف الجهاز):</label>
+          <label>🔑 Subscription ID:</label>
           <div class="value" id="sub-id-display">جاري التحميل...</div>
         </div>
 
@@ -249,8 +249,7 @@
       var spinner = document.getElementById("spinner");
       var modalOverlay = document.getElementById("modal-overlay");
       var debugPanel = document.getElementById("debug-panel");
-      var currentSubscriptionId = null; // <-- will store the correct Subscription ID
-      var subscriptionChangeResolved = false; // <-- set by listener
+      var currentSubscriptionId = null;
 
       function debugLog(msg) {
         console.log(msg);
@@ -260,7 +259,36 @@
         debugPanel.scrollTop = debugPanel.scrollHeight;
       }
 
-      // ─── OneSignal Init + subscription listener ───
+      // ── Helper: get the subscription ID directly from the browser (bypass OneSignal) ──
+      async function getSubscriptionFromBrowser() {
+        debugLog("🔧 Trying to get subscription from browser...");
+        if (!("serviceWorker" in navigator)) {
+          debugLog("❌ Service workers not supported");
+          return null;
+        }
+        try {
+          var registration = await navigator.serviceWorker.ready;
+          debugLog("✅ Service worker ready: " + (registration ? "yes" : "no"));
+          var subscription = await registration.pushManager.getSubscription();
+          if (subscription) {
+            debugLog("✅ Browser subscription exists");
+            debugLog(
+              "Endpoint: " + subscription.endpoint.substring(0, 50) + "...",
+            );
+            // The endpoint contains a unique token, but not the OneSignal ID.
+            // However, we can extract the token as a possible identifier (not the same as player ID).
+            return subscription.endpoint; // fallback – might not work with OneSignal
+          } else {
+            debugLog("⚠️ No push subscription found in browser");
+            return null;
+          }
+        } catch (e) {
+          debugLog("❌ Error: " + e.message);
+          return null;
+        }
+      }
+
+      // ── OneSignal Init + subscription listener ──
       window.addEventListener("load", function () {
         debugLog("Page loaded");
         if (!window.OneSignalDeferred) {
@@ -268,16 +296,20 @@
         }
         OneSignalDeferred.push(async function (OneSignal) {
           debugLog("SDK ready");
-          await OneSignal.init({
-            appId: APP_ID,
-            serviceWorkerPath: "OneSignalSDKWorker.js",
-            serviceWorkerParam: { scope: "/" },
-            promptOptions: { autoPrompt: false },
-          });
-          debugLog("Init done");
+          try {
+            await OneSignal.init({
+              appId: APP_ID,
+              serviceWorkerPath: "OneSignalSDKWorker.js",
+              serviceWorkerParam: { scope: "/" },
+              promptOptions: { autoPrompt: false },
+            });
+            debugLog("Init done");
+          } catch (e) {
+            debugLog("❌ Init error: " + e.message);
+          }
           btn.disabled = false;
 
-          // ⚡ Listen for push subscription changes – this fires when the subscription is created/updated
+          // Listen for push subscription changes
           OneSignal.User.pushSubscription.addEventListener(
             "change",
             function (subscription) {
@@ -287,26 +319,19 @@
                   ? subscription.current.id
                   : null;
               if (newId) {
-                debugLog("✅ Subscription ID (from listener): " + newId);
+                debugLog("✅ Subscription ID (listener): " + newId);
                 currentSubscriptionId = newId;
-                subscriptionChangeResolved = true;
               }
             },
           );
         });
       });
 
-      // ─── Get the Subscription ID (only correct methods, NO onesignalId) ───
+      // ── Get Subscription ID (tries OneSignal methods + browser fallback) ──
       async function getSubscriptionId() {
-        debugLog("=== Getting Subscription ID ===");
+        debugLog("=== Trying to get Subscription ID ===");
 
-        // If the listener already captured it, use that
-        if (subscriptionChangeResolved && currentSubscriptionId) {
-          debugLog("Listener already captured: " + currentSubscriptionId);
-          return currentSubscriptionId;
-        }
-
-        // Method 1: getIdAsync()
+        // 1. OneSignal getIdAsync
         try {
           var id1 = await OneSignal.User.pushSubscription.getIdAsync();
           if (id1) {
@@ -318,7 +343,7 @@
           debugLog("getIdAsync error: " + e.message);
         }
 
-        // Method 2: .id property
+        // 2. OneSignal .id property
         try {
           var id2 = OneSignal.User.pushSubscription.id;
           if (id2) {
@@ -330,16 +355,21 @@
           debugLog(".id error: " + e.message);
         }
 
-        // Method 3: direct subscription object (fallback)
-        try {
-          var sub = OneSignal.User.pushSubscription;
-          if (sub && sub.id) {
-            debugLog("✅ subscription object id: " + sub.id);
-            return sub.id;
-          }
-        } catch (e) {}
+        // 3. Check if a subscription exists in the browser at all
+        var browserSub = await getSubscriptionFromBrowser();
+        if (browserSub) {
+          // This is not the OneSignal player ID but shows that push is working.
+          debugLog(
+            "⚠️ Browser subscription exists, but OneSignal SDK did not return an ID. This usually means the service worker is not properly linked to OneSignal.",
+          );
+          // As a last resort, we could use the endpoint as a fallback, but that won't work for sending.
+          // So we'll just inform the user.
+          return null;
+        }
 
-        debugLog("❌ No Subscription ID found");
+        debugLog(
+          "❌ No subscription ID found – service worker may be missing or not registered",
+        );
         return null;
       }
 
@@ -352,15 +382,13 @@
 
       window.goToPortal = function () {
         debugLog("=== GOING TO PORTAL ===");
-        debugLog("Subscription ID: " + (currentSubscriptionId || "NONE"));
-
         if (currentSubscriptionId) {
           localStorage.setItem("sp_onesignal_playerid", currentSubscriptionId);
           var url =
             PORTAL_URL +
             "&onesignal_player=" +
             encodeURIComponent(currentSubscriptionId);
-          debugLog("Redirect URL: " + url);
+          debugLog("Redirect: " + url);
           window.location.href = url;
         } else {
           debugLog("No ID – going without");
@@ -379,12 +407,11 @@
           debugLog("Permission: " + accepted);
 
           if (accepted) {
-            debugLog("✅ Permission granted – waiting for subscription...");
-            showModal("جاري التحميل..."); // loading state
+            debugLog("✅ Permission granted – waiting...");
+            showModal("جاري التحميل...");
 
             var id = null;
-            // Retry up to 6 times (the listener may capture it early)
-            for (var i = 0; i < 6; i++) {
+            for (var i = 0; i < 8; i++) {
               await new Promise((r) => setTimeout(r, 1500));
               id = await getSubscriptionId();
               if (id) break;
@@ -393,9 +420,7 @@
             document.getElementById("sub-id-display").textContent =
               id || "لم يتم العثور على معرف";
             currentSubscriptionId = id;
-            debugLog(
-              id ? "✅ Final Subscription ID: " + id : "❌ Failed to get ID",
-            );
+            debugLog(id ? "✅ Final ID: " + id : "❌ Failed after retries");
           } else {
             alert("لم يتم تفعيل الإشعارات");
           }
