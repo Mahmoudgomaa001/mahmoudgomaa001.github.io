@@ -165,6 +165,21 @@
         transform: translateY(2px);
         box-shadow: 0 2px 0 #46a302;
       }
+      .btn-secondary {
+        background: #f2f2f7;
+        color: #1c1c1e;
+        border: none;
+        padding: 12px 28px;
+        font-size: 1rem;
+        font-weight: 600;
+        border-radius: 50px;
+        cursor: pointer;
+        font-family: "Cairo", sans-serif;
+        flex: 1;
+      }
+      .btn-secondary:hover {
+        background: #e5e5ea;
+      }
 
       .debug-panel {
         background: #1c1c1e;
@@ -179,6 +194,18 @@
         max-height: 250px;
         overflow-y: auto;
         display: block;
+      }
+      .retry-btn {
+        background: #ff9600;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        font-size: 0.9rem;
+        font-weight: 700;
+        border-radius: 50px;
+        cursor: pointer;
+        margin-top: 12px;
+        font-family: "Cairo", sans-serif;
       }
     </style>
     <script
@@ -203,17 +230,42 @@
       <p style="margin-top: 16px; font-size: 0.8rem; color: #8e8e93">
         سيتم توجيهك إلى البوابة بعد التفعيل.
       </p>
+      <button
+        id="retry-btn"
+        class="retry-btn"
+        style="display: none"
+        onclick="retrySubscription()"
+      >
+        🔄 إعادة المحاولة
+      </button>
     </div>
 
     <div class="modal-overlay" id="modal-overlay">
       <div class="modal">
         <div class="modal-icon">✅</div>
-        <h2>تم تفعيل الإشعارات بنجاح!</h2>
+        <h2 id="modal-title">تم تفعيل الإشعارات بنجاح!</h2>
         <p>معرف الاشتراك الخاص بك:</p>
 
         <div class="info-box">
-          <label>🔑 Subscription ID:</label>
+          <label id="id-label">🔑 Subscription ID:</label>
           <div class="value" id="sub-id-display">جاري التحميل...</div>
+        </div>
+
+        <div
+          id="warning-box"
+          style="
+            display: none;
+            background: #fff3cd;
+            padding: 8px;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            font-size: 0.75rem;
+            color: #856404;
+          "
+        >
+          ⚠️ هذا هو معرف المستخدم (OneSignal ID) وليس معرف الجهاز. لا يمكن
+          استخدامه للإرسال مباشرة، لكن يمكن استخدامه للبحث عن معرف الجهاز
+          لاحقاً.
         </div>
 
         <div class="modal-buttons">
@@ -234,7 +286,9 @@
       var spinner = document.getElementById("spinner");
       var modalOverlay = document.getElementById("modal-overlay");
       var debugPanel = document.getElementById("debug-panel");
+      var retryBtn = document.getElementById("retry-btn");
       var currentSubscriptionId = null;
+      var subscriptionResolved = false;
 
       function debugLog(msg) {
         console.log(msg);
@@ -244,19 +298,41 @@
         debugPanel.scrollTop = debugPanel.scrollHeight;
       }
 
-      // Check service worker registration
+      // --- Retry: clear stored data and reload ---
+      window.retrySubscription = function () {
+        localStorage.removeItem("sp_onesignal_playerid");
+        localStorage.removeItem("sp_external_id");
+        // Attempt to unregister the service worker and re-register by reloading
+        if ("serviceWorker" in navigator) {
+          navigator.serviceWorker
+            .getRegistrations()
+            .then(function (registrations) {
+              registrations.forEach(function (reg) {
+                reg.unregister();
+              });
+              setTimeout(function () {
+                location.reload();
+              }, 500);
+            });
+        } else {
+          location.reload();
+        }
+      };
+
+      // --- Check service worker ---
       function checkServiceWorker() {
         if ("serviceWorker" in navigator) {
           navigator.serviceWorker.getRegistration().then(function (reg) {
             if (reg) {
               debugLog("✅ Service Worker found: " + reg.scope);
             } else {
-              debugLog("❌ NO Service Worker registered!");
+              debugLog("❌ NO Service Worker registered");
             }
           });
         }
       }
 
+      // --- Init OneSignal + listen for subscription changes ---
       window.addEventListener("load", function () {
         debugLog("Page loaded");
         checkServiceWorker();
@@ -278,21 +354,57 @@
             debugLog("Init error: " + e.message);
           }
           btn.disabled = false;
+
+          // Listen for subscription creation
+          OneSignal.User.pushSubscription.addEventListener(
+            "change",
+            function (sub) {
+              debugLog("📱 Subscription change detected");
+              if (sub.current && sub.current.id) {
+                currentSubscriptionId = sub.current.id;
+                subscriptionResolved = true;
+                debugLog(
+                  "✅ Subscription ID (listener): " + currentSubscriptionId,
+                );
+                // Update modal if already showing
+                if (modalOverlay.classList.contains("active")) {
+                  document.getElementById("sub-id-display").textContent =
+                    currentSubscriptionId;
+                  document.getElementById("id-label").textContent =
+                    "🔑 Subscription ID:";
+                  document.getElementById("warning-box").style.display = "none";
+                }
+              }
+            },
+          );
         });
       });
+
+      // --- Get Subscription ID (poll for pushSubscription to become available) ---
+      async function waitForPushSubscription(timeoutMs) {
+        var start = Date.now();
+        while (Date.now() - start < timeoutMs) {
+          if (OneSignal.User && OneSignal.User.pushSubscription) {
+            return OneSignal.User.pushSubscription;
+          }
+          await new Promise((r) => setTimeout(r, 500));
+        }
+        return null;
+      }
 
       async function getSubscriptionId() {
         debugLog("=== Getting Subscription ID ===");
 
-        // Check if pushSubscription object exists
-        if (!OneSignal.User || !OneSignal.User.pushSubscription) {
-          debugLog("❌ pushSubscription is undefined");
+        // Wait up to 8 seconds for pushSubscription to be defined
+        var ps = await waitForPushSubscription(8000);
+        if (!ps) {
+          debugLog("❌ pushSubscription still undefined after 8s");
           return null;
         }
 
-        // Method 1: getIdAsync
+        // getIdAsync
         try {
-          var id = await OneSignal.User.pushSubscription.getIdAsync();
+          var id = await ps.getIdAsync();
           if (id) {
             debugLog("✅ getIdAsync: " + id);
             return id;
@@ -301,18 +413,18 @@
           debugLog("getIdAsync error: " + e.message);
         }
 
-        // Method 2: .id
-        if (OneSignal.User.pushSubscription.id) {
-          debugLog("✅ .id: " + OneSignal.User.pushSubscription.id);
-          return OneSignal.User.pushSubscription.id;
+        // .id
+        if (ps.id) {
+          debugLog("✅ .id: " + ps.id);
+          return ps.id;
         }
 
-        // Method 3: Force optIn
+        // Force optIn
         try {
           debugLog("🔄 Calling optIn()...");
-          await OneSignal.User.pushSubscription.optIn();
+          await ps.optIn();
           await new Promise((r) => setTimeout(r, 2000));
-          var newId = await OneSignal.User.pushSubscription.getIdAsync();
+          var newId = await ps.getIdAsync();
           if (newId) {
             debugLog("✅ ID after optIn: " + newId);
             return newId;
@@ -324,14 +436,40 @@
         return null;
       }
 
-      function showModal(subId) {
-        currentSubscriptionId = subId;
+      // --- Fallback: get OneSignal ID (user-level, not for sending) ---
+      function getOnesignalId() {
+        try {
+          var id = OneSignal.User.onesignalId;
+          if (id) {
+            debugLog("⚠️ Fallback to OneSignal ID: " + id);
+            return id;
+          }
+        } catch (e) {}
+        return null;
+      }
+
+      function showModal(id, isOnesignalId) {
+        currentSubscriptionId = id;
+        if (isOnesignalId) {
+          document.getElementById("id-label").textContent =
+            "👤 OneSignal ID (غير مخصص للإرسال):";
+          document.getElementById("warning-box").style.display = "block";
+          document.getElementById("modal-title").textContent =
+            "تم التفعيل (معرف المستخدم)";
+        } else {
+          document.getElementById("id-label").textContent =
+            "🔑 Subscription ID:";
+          document.getElementById("warning-box").style.display = "none";
+          document.getElementById("modal-title").textContent =
+            "تم تفعيل الإشعارات بنجاح!";
+        }
         document.getElementById("sub-id-display").textContent =
-          subId || "لم يتم العثور على معرف";
+          id || "لم يتم العثور على معرف";
         modalOverlay.classList.add("active");
       }
 
       window.goToPortal = function () {
+        debugLog("=== GOING TO PORTAL ===");
         if (currentSubscriptionId) {
           localStorage.setItem("sp_onesignal_playerid", currentSubscriptionId);
           var url =
@@ -344,10 +482,12 @@
         }
       };
 
+      // --- Button click ---
       btn.addEventListener("click", async function () {
         btnText.style.display = "none";
         spinner.style.display = "inline-block";
         btn.disabled = true;
+        retryBtn.style.display = "none";
         debugLog("=== BUTTON CLICKED ===");
 
         try {
@@ -355,17 +495,28 @@
           debugLog("Permission: " + accepted);
 
           if (accepted) {
+            debugLog("✅ Permission granted – waiting for subscription...");
             showModal("جاري التحميل...");
+
             var id = null;
-            for (var i = 0; i < 8; i++) {
-              await new Promise((r) => setTimeout(r, 2000));
-              id = await getSubscriptionId();
-              if (id) break;
+            // Try for subscription ID (poll up to 10 seconds)
+            id = await getSubscriptionId();
+
+            if (!id) {
+              // Fallback to OneSignal ID
+              id = getOnesignalId();
+              if (id) {
+                showModal(id, true);
+              } else {
+                document.getElementById("sub-id-display").textContent =
+                  "لم يتم العثور على معرف";
+              }
+            } else {
+              showModal(id, false);
             }
-            document.getElementById("sub-id-display").textContent =
-              id || "لم يتم العثور على معرف";
+
             currentSubscriptionId = id;
-            debugLog(id ? "✅ Final ID: " + id : "❌ Failed");
+            retryBtn.style.display = "inline-block";
           } else {
             alert("لم يتم تفعيل الإشعارات");
           }
